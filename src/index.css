@@ -10,15 +10,17 @@
   html,
   body,
   #root {
+    height: 100dvh;
     min-height: 100dvh;
     margin: 0;
     padding: 0;
-    overscroll-behavior-y: none;
+    overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
   }
 
   body {
     font-family: var(--font-display);
+    overflow: hidden;
   }
 
   ::selection {
@@ -285,4 +287,37 @@
     opacity: 0;
     transform: scale(0.4);
   }
+}
+
+@keyframes eq-bar {
+  0%, 100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.eq-bar {
+  transform-origin: bottom center;
+  animation: eq-bar 0.75s ease-in-out infinite;
+}
+
+@keyframes shooting-star {
+  0% {
+    transform: translate(-15vw, -5vh) rotate(22deg) scaleX(0.3);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translate(10vw, 4vh) rotate(22deg) scaleX(1.2);
+  }
+  100% {
+    transform: translate(95vw, 34vh) rotate(22deg) scaleX(0.6);
+    opacity: 0;
+  }
+}
+
+.shooting-star {
+  animation: shooting-star 1.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
