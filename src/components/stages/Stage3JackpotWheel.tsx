@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useRef, useState } from 'react';
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
 import { ArrowRight, RotateCw } from 'lucide-react';
 import { WHEEL_SEGMENTS, WheelSegment } from '../../data/birthdayContent';
 import { fireCelebrationConfetti, fireJackpotConfetti } from '../../utils/confetti';
 import { ambientAudio } from '../../utils/ambientAudio';
+import { triggerHaptic } from '../../utils/haptics';
 import { Kicker, PrimaryButton, SparkleIcon } from '../ui/Primitives';
 
 interface Stage3JackpotWheelProps {
@@ -25,10 +26,14 @@ function createWedgePath(cx: number, cy: number, r: number, startAngle: number, 
 export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }) => {
   const [spinCount, setSpinCount] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [rotation, setRotation] = useState(0);
-  const [spinDuration, setSpinDuration] = useState(3.2);
   const [wonPrizes, setWonPrizes] = useState<WheelSegment[]>([]);
   const [currentPrize, setCurrentPrize] = useState<WheelSegment | null>(null);
+  const [pointerFlick, setPointerFlick] = useState(false);
+
+  const rotationMV = useMotionValue(0);
+  const lastWedgeRef = useRef(0);
+  const flickTimerRef = useRef<number | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const jackpotIndex = WHEEL_SEGMENTS.findIndex((s) => s.isJackpot);
   const maxSpins = 3;
@@ -38,42 +43,64 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
   const handleSpin = () => {
     if (isSpinning || spinCount >= maxSpins) return;
 
+    triggerHaptic(15);
     const nextSpin = spinCount + 1;
     const targetIndex = nextSpin === 1 ? 7 : nextSpin === 2 ? 1 : jackpotIndex;
 
     const segmentAngle = 360 / WHEEL_SEGMENTS.length;
+    const currentRotation = rotationMV.get();
     const desiredMod = (360 - targetIndex * segmentAngle) % 360;
-    const currentMod = ((rotation % 360) + 360) % 360;
+    const currentMod = ((currentRotation % 360) + 360) % 360;
     const deltaMod = (desiredMod - currentMod + 360) % 360;
 
     const extraSpins = nextSpin === 3 ? 8 * 360 : 5 * 360;
     const jitter = nextSpin === 3 ? 0 : (Math.random() - 0.5) * 12;
-    const duration = nextSpin === 3 ? 5.2 : 3.2;
+    const duration = nextSpin === 3 ? 5.0 : 3.1;
+    const targetRotation = currentRotation + extraSpins + deltaMod + jitter;
+    const totalDelta = Math.max(1, targetRotation - currentRotation);
 
-    setSpinDuration(duration);
     setIsSpinning(true);
     setCurrentPrize(null);
-    setRotation((prev) => prev + extraSpins + deltaMod + jitter);
 
-    window.setTimeout(() => {
-      const won = WHEEL_SEGMENTS[targetIndex];
-      setIsSpinning(false);
-      setSpinCount(nextSpin);
-      setCurrentPrize(won);
-      setWonPrizes((prev) => [...prev, won]);
-      ambientAudio.playSparkleChime();
+    animate(rotationMV, targetRotation, {
+      duration,
+      ease: [0.12, 0.85, 0.16, 1],
+      onUpdate: (latest) => {
+        const wedgeIdx = Math.floor((latest + segmentAngle / 2) / segmentAngle);
+        if (wedgeIdx !== lastWedgeRef.current) {
+          lastWedgeRef.current = wedgeIdx;
+          const progress = Math.min(1, Math.max(0, (latest - currentRotation) / totalDelta));
+          ambientAudio.playWheelTick(1 - progress * 0.7);
+          triggerHaptic(4);
+          setPointerFlick(true);
+          if (flickTimerRef.current) window.clearTimeout(flickTimerRef.current);
+          flickTimerRef.current = window.setTimeout(() => setPointerFlick(false), 65);
+        }
+      },
+      onComplete: () => {
+        const won = WHEEL_SEGMENTS[targetIndex];
+        setIsSpinning(false);
+        setPointerFlick(false);
+        setSpinCount(nextSpin);
+        setCurrentPrize(won);
+        setWonPrizes((prev) => [...prev, won]);
 
-      if (won.isJackpot) {
-        fireJackpotConfetti();
-      } else {
-        fireCelebrationConfetti();
-      }
-    }, duration * 1000 + 80);
+        if (won.isJackpot) {
+          ambientAudio.playJackpotFanfare();
+          triggerHaptic([20, 40, 20, 40, 35]);
+          fireJackpotConfetti();
+        } else {
+          ambientAudio.playSparkleChime();
+          triggerHaptic([14, 25, 14]);
+          fireCelebrationConfetti();
+        }
+      },
+    });
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -24 }}
       transition={{ duration: 0.5 }}
@@ -81,17 +108,17 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
     >
       <Kicker className="text-[#ffcc4d]">Chapter 03 · 3 Spins</Kicker>
 
-      <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight mt-1">
+      <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight mt-0.5">
         <span className="neon-pink">LOVE</span>{' '}
         <span className="neon-gold">JACKPOT</span>
       </h2>
 
       {/* Spin Indicator Pills */}
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-1.5 flex items-center gap-2">
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className={`h-2 rounded-full transition-all duration-300 ${
+            className={`h-1.5 rounded-full transition-all duration-300 ${
               i < spinCount
                 ? 'w-7 bg-[#ffcc4d] shadow-[0_0_10px_#ffcc4d]'
                 : i === spinCount
@@ -100,7 +127,7 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
             }`}
           />
         ))}
-        <span className="ml-1 text-xs font-bold text-white/80">
+        <span className="ml-1 text-[11px] font-bold text-white/85">
           {hasWonJackpot
             ? 'JACKPOT WON!'
             : spinsLeft === 1
@@ -109,8 +136,22 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
         </span>
       </div>
 
-      {/* Wheel Stage */}
-      <div className="relative flex items-center justify-center my-4">
+      {/* Wheel Stage — Swipe or Tap to Spin */}
+      <div
+        onPointerDown={(e) => {
+          swipeStartRef.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerUp={(e) => {
+          if (!swipeStartRef.current) return;
+          const dist = Math.hypot(
+            e.clientX - swipeStartRef.current.x,
+            e.clientY - swipeStartRef.current.y
+          );
+          swipeStartRef.current = null;
+          if (dist > 28) handleSpin();
+        }}
+        className="relative flex items-center justify-center my-3 touch-pan-y"
+      >
         {/* Glow */}
         <motion.div
           animate={{
@@ -121,13 +162,18 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
           className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#ff4fa3]/60 via-[#ffcc4d]/50 to-[#7b2ff7]/60 blur-2xl"
         />
 
-        {/* Top Pointer */}
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30 drop-shadow-[0_6px_12px_rgba(0,0,0,0.7)]">
-          <div className="w-0 h-0 border-l-[15px] border-r-[15px] border-t-[28px] border-l-transparent border-r-transparent border-t-[#ffcc4d]" />
-        </div>
+        {/* Top Pointer that physically flicks with every peg tick */}
+        <motion.div
+          animate={{ rotate: pointerFlick ? -22 : 0 }}
+          transition={{ duration: 0.05 }}
+          style={{ transformOrigin: '50% 0%' }}
+          className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-30 drop-shadow-[0_6px_12px_rgba(0,0,0,0.7)]"
+        >
+          <div className="w-0 h-0 border-l-[14px] border-r-[14px] border-t-[26px] border-l-transparent border-r-transparent border-t-[#ffcc4d]" />
+        </motion.div>
 
         {/* 3D Marquee Rim */}
-        <div className="relative w-[295px] h-[295px] sm:w-[335px] sm:h-[335px] rounded-full p-3.5 bg-gradient-to-b from-[#ffe08a] via-[#d97706] to-[#78350f] shadow-[0_24px_60px_rgba(0,0,0,0.65),inset_0_2px_4px_rgba(255,255,255,0.6)]">
+        <div className="relative w-[min(70vw,280px,37dvh)] h-[min(70vw,280px,37dvh)] sm:w-[315px] sm:h-[315px] rounded-full p-3 bg-gradient-to-b from-[#ffe08a] via-[#d97706] to-[#78350f] shadow-[0_24px_60px_rgba(0,0,0,0.65),inset_0_2px_4px_rgba(255,255,255,0.6)]">
           {/* Chasing Marquee Bulbs */}
           {Array.from({ length: 20 }).map((_, i) => {
             const angle = (i * 360) / 20;
@@ -143,18 +189,14 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
                   animationDelay: `${(i % 2) * 0.28}s`,
                 }}
                 className={`${
-                  isSpinning ? 'bulb-fast' : 'bulb'
-                } absolute -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#fff6d6] z-20`}
+                  isSpinning || hasWonJackpot ? 'bulb-fast' : 'bulb'
+                } absolute -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#fff6d6] z-20`}
               />
             );
           })}
 
           <motion.div
-            animate={{ rotate: rotation }}
-            transition={{
-              duration: spinDuration,
-              ease: [0.12, 0.85, 0.16, 1],
-            }}
+            style={{ rotate: rotationMV }}
             className="w-full h-full rounded-full overflow-hidden relative shadow-[inset_0_0_25px_rgba(0,0,0,0.5)] bg-[#1f0738]"
           >
             <svg viewBox="0 0 200 200" className="w-full h-full">
@@ -200,65 +242,80 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
             disabled={isSpinning || hasWonJackpot}
             onClick={handleSpin}
             aria-label="Spin wheel"
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-to-br from-[#fff6d6] via-[#ffcc4d] to-[#d97706] border-4 border-[#3b0a57] shadow-[0_8px_20px_rgba(0,0,0,0.6)] flex items-center justify-center z-20 cursor-pointer active:scale-95 transition disabled:cursor-default"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-[#fff6d6] via-[#ffcc4d] to-[#d97706] border-4 border-[#3b0a57] shadow-[0_8px_20px_rgba(0,0,0,0.6)] flex items-center justify-center z-20 cursor-pointer active:scale-95 transition disabled:cursor-default"
           >
-            <span className="font-display text-[11px] font-extrabold tracking-wider text-[#3b0a57]">
+            <span className="font-display text-[10px] sm:text-[11px] font-extrabold tracking-wider text-[#3b0a57]">
               {isSpinning ? '•••' : hasWonJackpot ? '👑' : 'SPIN'}
             </span>
           </button>
         </div>
       </div>
 
-      {/* Won Prize Card */}
-      <AnimatePresence mode="wait">
-        {currentPrize && (
-          <motion.div
-            key={currentPrize.label}
-            initial={{ opacity: 0, scale: 0.85, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-            className={`w-full max-w-md rounded-3xl p-4 border shadow-2xl ${
-              currentPrize.isJackpot
-                ? 'bg-gradient-to-r from-[#ffcc4d]/30 via-[#ff4fa3]/30 to-[#7b2ff7]/30 border-[#ffcc4d] backdrop-blur-xl'
-                : 'glass'
-            }`}
-          >
-            <p className="font-display text-base sm:text-lg font-extrabold text-white flex items-center justify-center gap-2">
-              <span>{currentPrize.emoji}</span>
-              <span className={currentPrize.isJackpot ? 'gold-text text-xl' : ''}>
-                {currentPrize.isJackpot
-                  ? 'JACKPOT! ALL MY LOVE, FOREVER!'
-                  : `You Won: ${currentPrize.label}!`}
-              </span>
-            </p>
-            <p className="text-xs sm:text-sm text-white/90 mt-1">{currentPrize.description}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Prize Trophy Strip */}
-      {wonPrizes.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-1.5 mt-3 max-w-md">
-          {wonPrizes.map((p, i) => (
-            <span
-              key={i}
-              className="glass rounded-full px-3 py-1 text-[11px] font-bold text-[#ffd6e0]"
+      {/* Compact Won Prize Card + Trophy Strip */}
+      <div className="w-full max-w-md min-h-[104px] flex flex-col items-center justify-center">
+        <AnimatePresence mode="wait">
+          {currentPrize ? (
+            <motion.div
+              key={currentPrize.label}
+              initial={{ opacity: 0, scale: 0.88, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+              className={`w-full rounded-2xl px-4 py-3 border shadow-2xl ${
+                currentPrize.isJackpot
+                  ? 'bg-gradient-to-r from-[#ffcc4d]/30 via-[#ff4fa3]/30 to-[#7b2ff7]/30 border-[#ffcc4d] backdrop-blur-xl'
+                  : 'glass'
+              }`}
             >
-              {p.emoji} {p.label}
-            </span>
-          ))}
-        </div>
-      )}
+              <p className="font-display text-sm sm:text-base font-extrabold text-white flex items-center justify-center gap-1.5">
+                <span>{currentPrize.emoji}</span>
+                <span className={currentPrize.isJackpot ? 'gold-text text-base sm:text-lg' : ''}>
+                  {currentPrize.isJackpot
+                    ? 'JACKPOT! ALL MY LOVE, FOREVER!'
+                    : `You Won: ${currentPrize.label}!`}
+                </span>
+              </p>
+              <p className="text-[11px] sm:text-xs text-white/90 mt-0.5 leading-snug">
+                {currentPrize.description}
+              </p>
+            </motion.div>
+          ) : (
+            <motion.p
+              key="spin-hint"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.75 }}
+              exit={{ opacity: 0 }}
+              className="text-xs text-white/70"
+            >
+              {isSpinning
+                ? 'Watch the wheel spin… ✨'
+                : 'Tap SPIN or swipe the wheel for your birthday prize!'}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {wonPrizes.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+            {wonPrizes.map((p, i) => (
+              <span
+                key={i}
+                className="glass rounded-full px-2.5 py-0.5 text-[10px] font-bold text-[#ffd6e0]"
+              >
+                {p.emoji} {p.shortLabel}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Main CTA */}
-      <div className="mt-5">
+      <div className="mt-3">
         {!hasWonJackpot ? (
           <PrimaryButton
             variant={spinCount === 2 ? 'gold' : 'pink'}
             disabled={isSpinning}
             onClick={handleSpin}
-            className={spinCount === 2 && !isSpinning ? 'animate-pulse' : ''}
+            className={`px-7 py-3 text-sm ${spinCount === 2 && !isSpinning ? 'animate-pulse' : ''}`}
           >
             <RotateCw className={`w-4 h-4 ${isSpinning ? 'animate-spin' : ''}`} />
             {isSpinning
@@ -270,7 +327,14 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
                 : 'SPIN TO WIN'}
           </PrimaryButton>
         ) : (
-          <PrimaryButton variant="gold" onClick={onNext}>
+          <PrimaryButton
+            variant="gold"
+            onClick={() => {
+              triggerHaptic(14);
+              onNext();
+            }}
+            className="px-7 py-3 text-sm"
+          >
             <SparkleIcon size={16} />
             <span>Claim & Continue</span>
             <ArrowRight className="w-4 h-4" />

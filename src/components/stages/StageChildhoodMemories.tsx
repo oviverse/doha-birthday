@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, RotateCcw, Volume2 } from 'lucide-react';
+import { ArrowRight, Heart, Pause, RotateCcw, Volume2 } from 'lucide-react';
 import childhoodPhoto1 from '../../../asset/images/childhood/542405518_497696813438731_2556553202257628836_n.jpeg';
 import childhoodPhoto2 from '../../../asset/images/childhood/543382226_791785130207636_4072870486427926902_n.jpeg';
 import childhoodVideo1 from '../../../asset/images/childhood/542858955_1429470438525990_2560416745788430860_n.mp4';
 import childhoodVideo2 from '../../../asset/images/childhood/543017087_1104521461862947_797504643847436973_n.mp4';
 import childhoodVideo3 from '../../../asset/images/childhood/541594503_1734660007250964_5753557278011703714_n.mp4';
 import { ambientAudio } from '../../utils/ambientAudio';
+import { triggerHaptic } from '../../utils/haptics';
 import { fireSparkleBurst } from '../../utils/confetti';
 import { PrimaryButton } from '../ui/Primitives';
 
@@ -32,8 +33,14 @@ interface ChildhoodMemory {
   };
 }
 
-const IMAGE_DURATION_MS = 5200;
-const CROSSFADE_SECONDS = 1.25;
+interface HeartBurst {
+  id: number;
+  x: number;
+  y: number;
+}
+
+const IMAGE_DURATION_MS = 5000;
+const CROSSFADE_SECONDS = 1.15;
 const CROSSFADE_EASE = [0.22, 1, 0.36, 1] as const;
 
 const CHILDHOOD_MEMORIES: ChildhoodMemory[] = [
@@ -42,7 +49,8 @@ const CHILDHOOD_MEMORIES: ChildhoodMemory[] = [
     type: 'image',
     src: childhoodPhoto1,
     caption: 'Look at that sweetest little smile',
-    ambientTint: 'radial-gradient(circle at 50% 45%, rgba(255, 190, 140, 0.38), rgba(255, 120, 165, 0.16), transparent 72%)',
+    ambientTint:
+      'radial-gradient(circle at 50% 45%, rgba(255, 190, 140, 0.38), rgba(255, 120, 165, 0.16), transparent 72%)',
     kenBurns: { fromScale: 1, toScale: 1.055, fromX: 0, toX: -5, fromY: 0, toY: -4 },
   },
   {
@@ -51,14 +59,16 @@ const CHILDHOOD_MEMORIES: ChildhoodMemory[] = [
     src: childhoodVideo1,
     caption: 'Tiny moments full of pure joy',
     hasAudio: true,
-    ambientTint: 'radial-gradient(circle at 50% 45%, rgba(255, 150, 185, 0.36), rgba(180, 120, 255, 0.16), transparent 72%)',
+    ambientTint:
+      'radial-gradient(circle at 50% 45%, rgba(255, 150, 185, 0.36), rgba(180, 120, 255, 0.16), transparent 72%)',
   },
   {
     id: 'childhood-photo-2',
     type: 'image',
     src: childhoodPhoto2,
     caption: 'Already shining brighter than the sun',
-    ambientTint: 'radial-gradient(circle at 50% 45%, rgba(255, 210, 125, 0.38), rgba(255, 140, 175, 0.16), transparent 72%)',
+    ambientTint:
+      'radial-gradient(circle at 50% 45%, rgba(255, 210, 125, 0.38), rgba(255, 140, 175, 0.16), transparent 72%)',
     kenBurns: { fromScale: 1.055, toScale: 1, fromX: -4, toX: 4, fromY: 3, toY: -3 },
   },
   {
@@ -67,7 +77,8 @@ const CHILDHOOD_MEMORIES: ChildhoodMemory[] = [
     src: childhoodVideo2,
     caption: 'Growing up with all that magic',
     hasAudio: false,
-    ambientTint: 'radial-gradient(circle at 50% 45%, rgba(210, 140, 255, 0.36), rgba(255, 143, 171, 0.18), transparent 72%)',
+    ambientTint:
+      'radial-gradient(circle at 50% 45%, rgba(210, 140, 255, 0.36), rgba(255, 143, 171, 0.18), transparent 72%)',
   },
   {
     id: 'childhood-video-3',
@@ -75,7 +86,8 @@ const CHILDHOOD_MEMORIES: ChildhoodMemory[] = [
     src: childhoodVideo3,
     caption: 'Every step led to you turning 21',
     hasAudio: false,
-    ambientTint: 'radial-gradient(circle at 50% 45%, rgba(255, 180, 130, 0.36), rgba(255, 130, 175, 0.18), transparent 72%)',
+    ambientTint:
+      'radial-gradient(circle at 50% 45%, rgba(255, 180, 130, 0.36), rgba(255, 130, 175, 0.18), transparent 72%)',
   },
 ];
 
@@ -87,14 +99,23 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [needsSoundTap, setNeedsSoundTap] = useState(false);
   const [runId, setRunId] = useState(0);
+  const [hearts, setHearts] = useState<HeartBurst[]>([]);
 
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const progressRef = useRef(0);
+  const isPausedRef = useRef(false);
+  const holdTimerRef = useRef<number | null>(null);
+  const heldLongRef = useRef(false);
+  const lastTapRef = useRef(0);
+
+  progressRef.current = progress;
+  isPausedRef.current = isPaused;
 
   const activeMemory = CHILDHOOD_MEMORIES[activeIndex];
 
-  // Preload images immediately so transitions are instant
   useEffect(() => {
     CHILDHOOD_MEMORIES.forEach((item) => {
       if (item.type === 'image') {
@@ -105,7 +126,6 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     });
   }, []);
 
-  // Restore ambient music and pause all videos on unmount
   useEffect(() => {
     const refs = videoRefs.current;
     return () => {
@@ -116,7 +136,6 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     };
   }, []);
 
-  // Clear outgoing layer after optical cross-dissolve completes
   useEffect(() => {
     if (prevIndex === null) return;
     const prevItem = CHILDHOOD_MEMORIES[prevIndex];
@@ -134,6 +153,22 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     return () => window.clearTimeout(timer);
   }, [prevIndex]);
 
+  const jumpToMemory = useCallback((targetIdx: number) => {
+    ambientAudio.setTempPaused(false);
+    setNeedsSoundTap(false);
+    setIsCompleted(false);
+    setActiveIndex((curr) => {
+      const clamped = Math.max(0, Math.min(CHILDHOOD_MEMORIES.length - 1, targetIdx));
+      if (clamped !== curr) {
+        setPrevIndex(curr);
+      }
+      setProgress(0);
+      progressRef.current = 0;
+      return clamped;
+    });
+    setRunId((r) => r + 1);
+  }, []);
+
   const advanceSequence = useCallback(() => {
     ambientAudio.setTempPaused(false);
     setNeedsSoundTap(false);
@@ -141,15 +176,29 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
       if (current < CHILDHOOD_MEMORIES.length - 1) {
         setPrevIndex(current);
         setProgress(0);
+        progressRef.current = 0;
         return current + 1;
       }
       setProgress(1);
+      progressRef.current = 1;
       setIsCompleted(true);
       ambientAudio.playSparkleChime();
       fireSparkleBurst();
       return current;
     });
   }, []);
+
+  // Pause/resume active video when hold-pausing
+  useEffect(() => {
+    if (activeMemory.type !== 'video') return;
+    const vid = videoRefs.current[activeMemory.id];
+    if (!vid) return;
+    if (isPaused) {
+      vid.pause();
+    } else if (!isIntroActive && !isCompleted) {
+      void vid.play().catch(() => {});
+    }
+  }, [isPaused, activeMemory, isIntroActive, isCompleted]);
 
   // Sequence playback controller for the active image or video
   useEffect(() => {
@@ -161,11 +210,17 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     if (activeMemory.type === 'image') {
       ambientAudio.setTempPaused(false);
       setNeedsSoundTap(false);
-      const startTime = performance.now();
+      let elapsedMs = progressRef.current * IMAGE_DURATION_MS;
+      let lastTick = performance.now();
 
       const tickImage = (now: number) => {
         if (cancelled) return;
-        const ratio = Math.min(1, (now - startTime) / IMAGE_DURATION_MS);
+        const dt = now - lastTick;
+        lastTick = now;
+        if (!isPausedRef.current) {
+          elapsedMs += dt;
+        }
+        const ratio = Math.min(1, elapsedMs / IMAGE_DURATION_MS);
         setProgress(ratio);
         if (ratio >= 1) {
           advanceSequence();
@@ -255,6 +310,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
   };
 
   const handleReplay = () => {
+    triggerHaptic(10);
     ambientAudio.setTempPaused(false);
     Object.values(videoRefs.current).forEach((v) => {
       if (v) {
@@ -265,9 +321,67 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     setPrevIndex(null);
     setActiveIndex(0);
     setProgress(0);
+    progressRef.current = 0;
     setIsCompleted(false);
+    setIsPaused(false);
     setNeedsSoundTap(false);
     setRunId((r) => r + 1);
+  };
+
+  const handleFramePointerDown = () => {
+    heldLongRef.current = false;
+    if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = window.setTimeout(() => {
+      heldLongRef.current = true;
+      setIsPaused(true);
+      triggerHaptic(8);
+    }, 220);
+  };
+
+  const handleFramePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (holdTimerRef.current) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (heldLongRef.current) {
+      setIsPaused(false);
+      heldLongRef.current = false;
+      return;
+    }
+
+    if (needsSoundTap) {
+      handleUnmuteVideoTap();
+      return;
+    }
+
+    const now = performance.now();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+
+    if (now - lastTapRef.current < 260) {
+      // Double tap -> heart burst
+      lastTapRef.current = 0;
+      const id = Date.now() + Math.random();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      triggerHaptic(10);
+      ambientAudio.playSoftTap(1.22);
+      setHearts((prev) => [...prev.slice(-6), { id, x, y }]);
+      window.setTimeout(() => {
+        setHearts((prev) => prev.filter((h) => h.id !== id));
+      }, 850);
+      return;
+    }
+    lastTapRef.current = now;
+
+    // Single tap edge navigation (left 28% back, right 28% forward)
+    if (relX < 0.28 && activeIndex > 0) {
+      triggerHaptic(6);
+      jumpToMemory(activeIndex - 1);
+    } else if (relX > 0.72 && !isCompleted) {
+      triggerHaptic(6);
+      advanceSequence();
+    }
   };
 
   return (
@@ -283,7 +397,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.6 }}
-        className="mb-3 flex flex-col items-center"
+        className="mb-2 flex flex-col items-center"
       >
         <span className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/45">
           Chapter 05 · Childhood
@@ -295,7 +409,6 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
 
       {/* Focal Cinema Stage */}
       <div className="relative flex flex-col items-center">
-        {/* Ambient cinema halo radiating softly onto the blurred backdrop */}
         <motion.div
           key={activeMemory.id}
           initial={{ opacity: 0 }}
@@ -308,11 +421,18 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
 
         {/* Pure, unobstructed 9:16 portrait frame */}
         <div
-          onClick={needsSoundTap ? handleUnmuteVideoTap : undefined}
-          style={{ height: 'min(64dvh, 560px)' }}
-          className={`relative aspect-[9/16] max-w-[88vw] rounded-[26px] overflow-hidden bg-[#0a040c] ring-1 ring-white/20 shadow-[0_36px_95px_-12px_rgba(0,0,0,0.95)] select-none ${
-            needsSoundTap ? 'cursor-pointer' : ''
-          }`}
+          onPointerDown={handleFramePointerDown}
+          onPointerUp={handleFramePointerUp}
+          onPointerCancel={() => {
+            if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+            setIsPaused(false);
+          }}
+          onPointerLeave={() => {
+            if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+            setIsPaused(false);
+          }}
+          style={{ height: 'min(52dvh, 490px, calc(82vw * 16 / 9))' }}
+          className="relative aspect-[9/16] rounded-[26px] overflow-hidden bg-[#0a040c] ring-1 ring-white/20 shadow-[0_36px_95px_-12px_rgba(0,0,0,0.95)] select-none cursor-pointer"
         >
           {/* GPU-composited optical cross-dissolve stack */}
           {CHILDHOOD_MEMORIES.map((item, idx) => {
@@ -385,7 +505,6 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
             );
           })}
 
-          {/* Subtle edge feathering for cinematic depth — leaves media completely clear */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 z-10 rounded-[26px] ring-1 ring-inset ring-white/10"
@@ -393,6 +512,36 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
               boxShadow: 'inset 0 0 42px rgba(0, 0, 0, 0.28)',
             }}
           />
+
+          {/* Floating double-tap hearts */}
+          <AnimatePresence>
+            {hearts.map((h) => (
+              <motion.div
+                key={h.id}
+                initial={{ x: h.x - 16, y: h.y - 16, scale: 0.4, opacity: 1 }}
+                animate={{ y: h.y - 72, scale: 1.4, opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.78, ease: 'easeOut' }}
+                className="pointer-events-none absolute z-30"
+              >
+                <Heart className="w-8 h-8 text-[#ff4f8b] fill-[#ff4f8b] drop-shadow-[0_4px_12px_rgba(255,79,139,0.8)]" />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Hold-to-pause badge */}
+          <AnimatePresence>
+            {isPaused && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="pointer-events-none absolute top-3.5 left-3.5 z-20 inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90 backdrop-blur-md"
+              >
+                <Pause className="w-2.5 h-2.5" /> Paused
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Only appears if browser blocked unmuted autoplay */}
           <AnimatePresence>
@@ -416,10 +565,10 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
         </div>
 
         {/* Minimalist progress & editorial caption cleanly BELOW the frame */}
-        <div className="mt-3.5 w-full max-w-[320px] px-1">
+        <div className="mt-3 w-full max-w-[310px] px-1">
           <div
             style={{ gridTemplateColumns: `repeat(${CHILDHOOD_MEMORIES.length}, minmax(0, 1fr))` }}
-            className="pointer-events-none grid gap-1.5"
+            className="grid gap-1.5"
           >
             {CHILDHOOD_MEMORIES.map((item, idx) => {
               const fill =
@@ -430,9 +579,12 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                     : 0;
 
               return (
-                <div
+                <button
                   key={item.id}
-                  className="h-[2.5px] rounded-full bg-white/15 overflow-hidden"
+                  type="button"
+                  onClick={() => jumpToMemory(idx)}
+                  aria-label={`Jump to memory ${idx + 1}`}
+                  className="h-[3px] rounded-full bg-white/15 overflow-hidden cursor-pointer"
                 >
                   <div
                     style={{
@@ -445,12 +597,12 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                         : 'bg-white/75'
                     }`}
                   />
-                </div>
+                </button>
               );
             })}
           </div>
 
-          <div className="mt-2.5 min-h-[56px] flex flex-col items-center justify-center">
+          <div className="mt-2 min-h-[58px] flex flex-col items-center justify-center">
             <AnimatePresence mode="wait">
               {!isCompleted ? (
                 <motion.div
@@ -458,14 +610,14 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.45, ease: CROSSFADE_EASE }}
+                  transition={{ duration: 0.4, ease: CROSSFADE_EASE }}
                   className="flex flex-col items-center gap-0.5"
                 >
-                  <p className="font-serif italic text-xl sm:text-[22px] text-[#fff6f8]/95 leading-snug">
+                  <p className="font-serif italic text-lg sm:text-[21px] text-[#fff6f8]/95 leading-snug">
                     “{activeMemory.caption}”
                   </p>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/40 tabular-nums">
-                    0{activeIndex + 1} / 0{CHILDHOOD_MEMORIES.length}
+                  <span className="text-[9.5px] font-semibold uppercase tracking-[0.22em] text-white/40 tabular-nums">
+                    0{activeIndex + 1} / 0{CHILDHOOD_MEMORIES.length} · Tap edges or hold
                   </span>
                 </motion.div>
               ) : (
@@ -479,11 +631,18 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                   <button
                     type="button"
                     onClick={handleReplay}
-                    className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/20 active:scale-95 transition cursor-pointer"
+                    className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs sm:text-sm font-semibold text-white/90 hover:bg-white/20 active:scale-95 transition cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" /> Replay
                   </button>
-                  <PrimaryButton variant="gold" onClick={onNext} className="px-6 py-2.5 text-xs sm:text-sm">
+                  <PrimaryButton
+                    variant="gold"
+                    onClick={() => {
+                      triggerHaptic(12);
+                      onNext();
+                    }}
+                    className="px-6 py-2.5 text-xs sm:text-sm"
+                  >
                     <span>Continue</span>
                     <ArrowRight className="w-4 h-4" />
                   </PrimaryButton>

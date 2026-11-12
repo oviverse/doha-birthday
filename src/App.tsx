@@ -19,7 +19,12 @@ const TOTAL_STAGES = 9;
 export function App() {
   const [stage, setStage] = useState(0);
   const [introStage, setIntroStage] = useState<number | null>(null);
-  const [highestUnlocked, setHighestUnlocked] = useState(0);
+  const [highestUnlocked, setHighestUnlocked] = useState(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1') {
+      return TOTAL_STAGES - 1;
+    }
+    return 0;
+  });
 
   useEffect(() => {
     ambientAudio.startAmbient();
@@ -36,7 +41,6 @@ export function App() {
     } else {
       setIntroStage(null);
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleOpenSurprise = () => {
@@ -58,9 +62,8 @@ export function App() {
       currentStage={stage}
       totalStages={TOTAL_STAGES}
       onPrevStage={() => goToStage(stage - 1, false)}
-      // TEMP: temporary skip handler for easy testing across all stages
-      onSkipStage={() => goToStage((stage + 1) % TOTAL_STAGES, false)}
       onSelectStage={(s) => goToStage(s, false)}
+      onUnlockAll={() => setHighestUnlocked(TOTAL_STAGES - 1)}
       highestUnlocked={highestUnlocked}
       focusMode={stage === 3 || stage === 4}
     >

@@ -6,6 +6,8 @@ import {
   loadSpotifyIframeApi,
   type SpotifyEmbedController,
 } from '../../utils/spotifyIframeApi';
+import { ambientAudio } from '../../utils/ambientAudio';
+import { triggerHaptic } from '../../utils/haptics';
 import { Kicker, PrimaryButton } from '../ui/Primitives';
 
 interface Stage6MusicCornerProps {
@@ -43,7 +45,7 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
           mountNode,
           {
             width: '100%',
-            height: 152,
+            height: 80,
             uri: `spotify:track:${DOHA_SONGS[0].spotifyTrackId}`,
             theme: 'dark',
           },
@@ -57,7 +59,6 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
 
             controller.addListener('ready', () => {
               if (cancelled) return;
-              // Attempt autoplay when the soundtrack stage appears (subject to browser autoplay policy)
               controller.play();
             });
 
@@ -94,6 +95,8 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
   }, []);
 
   const handleSelectSong = (song: (typeof DOHA_SONGS)[number]) => {
+    triggerHaptic(8);
+    ambientAudio.playSoftTap(1.05);
     const controller = controllerRef.current;
 
     if (song.id === activeSong.id && controller) {
@@ -109,45 +112,63 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
   };
 
   const handleTogglePlay = () => {
+    triggerHaptic(8);
     controllerRef.current?.togglePlay();
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -24 }}
       transition={{ duration: 0.5 }}
       className="w-full flex flex-col items-center text-center"
     >
       <Kicker className="text-[#1ed760]">Chapter 07 · Her Soundtrack</Kicker>
-      <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white mt-1.5 max-w-md leading-snug tracking-tight">
-        Your Favorite Songs, Because Every Love Story Has a{' '}
+      <h2 className="font-display text-xl sm:text-3xl font-extrabold text-white mt-1 max-w-md leading-tight tracking-tight">
+        Every Love Story Has a{' '}
         <span className="font-serif italic font-normal text-[#1ed760]">Soundtrack.</span>
       </h2>
-      <p className="mt-1.5 text-xs sm:text-sm text-white/75 max-w-md">
-        As much as I love these tracks, my favorite sound in the world is still hearing you sing. 🎤✨
+      <p className="mt-0.5 text-[11px] sm:text-xs text-white/75 max-w-md">
+        My favorite sound in the world is still hearing you sing 🎤✨
       </p>
 
       {/* Vinyl + Now Playing Card */}
-      <div className="glass mt-4 w-full max-w-md rounded-3xl p-4 sm:p-5">
-        <div className="flex items-center gap-4 mb-4">
-          {/* Album Art + Spinning Vinyl Disc */}
-          <div className="relative w-20 h-16 shrink-0">
+      <div className="glass mt-2.5 w-full max-w-md rounded-3xl p-3.5 sm:p-4 relative overflow-hidden">
+        {/* Floating musical notes when playing */}
+        {isPlaying && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {['♪', '♫', '♪'].map((note, idx) => (
+              <motion.span
+                key={idx}
+                initial={{ y: 40, x: 30 + idx * 90, opacity: 0 }}
+                animate={{ y: -30, opacity: [0, 0.7, 0], x: 35 + idx * 90 + (idx % 2 === 0 ? 12 : -12) }}
+                transition={{ duration: 2.8, repeat: Infinity, delay: idx * 0.8, ease: 'easeOut' }}
+                className="absolute bottom-6 text-sm text-[#1ed760]/75"
+              >
+                {note}
+              </motion.span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mb-2.5">
+          {/* Album Art + Spinning Vinyl Disc + Tonearm */}
+          <div className="relative w-[76px] h-14 shrink-0">
             <motion.div
               animate={isPlaying ? { rotate: 360 } : { rotate: 0 }}
               transition={
                 isPlaying
-                  ? { duration: 6, repeat: Infinity, ease: 'linear' }
+                  ? { duration: 5.5, repeat: Infinity, ease: 'linear' }
                   : { duration: 0.4 }
               }
-              className="absolute right-0 top-1 w-14 h-14 rounded-full bg-[radial-gradient(circle_at_center,#1ed760_0_15%,#111_16%_100%)] border border-white/20 shadow-lg flex items-center justify-center"
+              className="absolute right-0 top-0.5 w-[52px] h-[52px] rounded-full bg-[radial-gradient(circle_at_center,#1ed760_0_16%,#151515_17%_45%,#222_46%_48%,#111_49%_100%)] border border-white/20 shadow-lg flex items-center justify-center"
             >
-              <div className="w-3 h-3 rounded-full bg-[#120a22]" />
+              <div className="w-2.5 h-2.5 rounded-full bg-[#120a22]" />
             </motion.div>
             <div
               style={{ background: activeSong.cover }}
-              className="relative z-10 w-16 h-16 rounded-xl shadow-xl border border-white/25 flex items-center justify-center text-xl"
+              className="relative z-10 w-14 h-14 rounded-xl shadow-xl border border-white/25 flex items-center justify-center text-lg"
             >
               🎵
             </div>
@@ -160,13 +181,22 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
             transition={{ duration: 0.25 }}
             className="text-left min-w-0 flex-1"
           >
-            <span className="inline-block rounded-full bg-[#1ed760]/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#1ed760] mb-1">
-              Doha’s Mix
-            </span>
-            <p className="font-display text-lg font-extrabold text-white truncate">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="inline-block rounded-full bg-[#1ed760]/20 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#1ed760]">
+                Doha’s Mix
+              </span>
+              {isPlaying && (
+                <span className="flex items-end gap-[2px] h-2.5" aria-hidden>
+                  <span className="eq-bar w-[2px] h-2 rounded-full bg-[#1ed760]" />
+                  <span className="eq-bar w-[2px] h-2.5 rounded-full bg-[#1ed760]" style={{ animationDelay: '0.2s' }} />
+                  <span className="eq-bar w-[2px] h-1.5 rounded-full bg-[#1ed760]" style={{ animationDelay: '0.4s' }} />
+                </span>
+              )}
+            </div>
+            <p className="font-display text-base sm:text-lg font-extrabold text-white truncate">
               {activeSong.title}
             </p>
-            <p className="text-xs font-medium text-white/70 truncate">{activeSong.artist}</p>
+            <p className="text-[11px] font-medium text-white/70 truncate">{activeSong.artist}</p>
           </motion.div>
 
           {!apiFailed && (
@@ -174,7 +204,7 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
               type="button"
               onClick={handleTogglePlay}
               aria-label={isPlaying ? 'Pause song' : 'Play song'}
-              className="shrink-0 w-10 h-10 rounded-full bg-[#1ed760] text-[#06210f] flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
+              className="shrink-0 w-9 h-9 rounded-full bg-[#1ed760] text-[#06210f] flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer"
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4 fill-current" />
@@ -190,15 +220,15 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
             title={`${activeSong.title} by ${activeSong.artist}`}
             src={`https://open.spotify.com/embed/track/${activeSong.spotifyTrackId}?utm_source=generator&theme=0`}
             width="100%"
-            height="152"
+            height="80"
             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             loading="lazy"
-            className="rounded-2xl border-0 shadow-lg"
+            className="rounded-xl border-0 shadow-lg"
           />
         ) : (
           <div
             ref={embedHostRef}
-            className="w-full min-h-[152px] rounded-2xl overflow-hidden shadow-lg bg-black/25"
+            className="w-full h-[80px] rounded-xl overflow-hidden shadow-lg bg-black/30"
           />
         )}
 
@@ -206,53 +236,58 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
           key={`note-${activeSong.id}`}
           initial={{ opacity: 0.5 }}
           animate={{ opacity: 1 }}
-          className="mt-3 font-hand text-xl text-[#ffd6e0]"
+          className="mt-2 font-hand text-[17px] sm:text-lg text-[#ffd6e0] leading-snug"
         >
           “{activeSong.note}”
         </motion.p>
       </div>
 
-      {/* Spotify Wrapped Top Songs List */}
-      <div className="mt-3.5 w-full max-w-md space-y-2">
+      {/* Compact 2-Column Song Grid (all 6 songs visible without scrolling) */}
+      <div className="mt-2.5 w-full max-w-md grid grid-cols-2 gap-1.5">
         {DOHA_SONGS.map((song, idx) => {
           const isSelected = song.id === activeSong.id;
           return (
             <motion.button
               key={song.id}
               type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => handleSelectSong(song)}
-              className={`w-full flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-left transition cursor-pointer border ${
+              className={`flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left transition cursor-pointer border ${
                 isSelected
-                  ? 'bg-white/20 border-[#1ed760]/70 shadow-md'
+                  ? 'bg-white/20 border-[#1ed760]/75 shadow-md'
                   : 'bg-white/[0.06] border-white/10 hover:bg-white/12'
               }`}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="font-display text-xs font-extrabold text-white/50 w-4">
-                  0{idx + 1}
-                </span>
+              <div className="flex items-center gap-2 min-w-0">
                 <div
                   style={{ background: song.cover }}
-                  className="w-9 h-9 rounded-lg shrink-0 border border-white/20"
-                />
+                  className="w-7 h-7 rounded-md shrink-0 border border-white/20 flex items-center justify-center text-[10px] font-extrabold text-white/90"
+                >
+                  {idx + 1}
+                </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{song.title}</p>
-                  <p className="text-xs text-white/65 truncate">{song.artist}</p>
+                  <p className="text-[11px] sm:text-xs font-bold text-white truncate">{song.title}</p>
+                  <p className="text-[9.5px] text-white/60 truncate">{song.artist}</p>
                 </div>
               </div>
               {isSelected ? (
-                <Heart className="w-4 h-4 text-[#1ed760] fill-[#1ed760] shrink-0" />
+                <Heart className="w-3.5 h-3.5 text-[#1ed760] fill-[#1ed760] shrink-0" />
               ) : (
-                <Play className="w-3.5 h-3.5 text-white/45 shrink-0" />
+                <Play className="w-3 h-3 text-white/45 shrink-0" />
               )}
             </motion.button>
           );
         })}
       </div>
 
-      <PrimaryButton variant="pink" onClick={onNext} className="mt-6">
+      <PrimaryButton
+        variant="pink"
+        onClick={() => {
+          triggerHaptic(12);
+          onNext();
+        }}
+        className="mt-3.5 px-7 py-3 text-sm"
+      >
         <span>Make Your 21st Wish 🎂</span>
         <ArrowRight className="w-4 h-4" />
       </PrimaryButton>

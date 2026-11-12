@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ArrowRight, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowRight, Check, Heart } from 'lucide-react';
 import { LOVE_REASONS, type LoveReason } from '../../data/birthdayContent';
 import { ambientAudio } from '../../utils/ambientAudio';
+import { triggerHaptic } from '../../utils/haptics';
 import { fireCelebrationConfetti, fireSparkleBurst } from '../../utils/confetti';
 import { PrimaryButton } from '../ui/Primitives';
 
@@ -99,6 +100,13 @@ interface ScratchReasonCardProps {
   total: number;
   isRevealed: boolean;
   onReveal: () => void;
+  onSwipeCard?: (dir: number) => void;
+}
+
+interface HeartPop {
+  id: number;
+  x: number;
+  y: number;
 }
 
 const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
@@ -107,6 +115,7 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
   total,
   isRevealed,
   onReveal,
+  onSwipeCard,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -116,16 +125,22 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
   const strokeCountRef = useRef(0);
   const revealedRef = useRef(isRevealed);
   const canvasSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const [flakes, setFlakes] = useState<ScratchFlake[]>([]);
   const [glintPos, setGlintPos] = useState<{ x: number; y: number } | null>(null);
+  const [scratchPct, setScratchPct] = useState(0);
+  const [hearts, setHearts] = useState<HeartPop[]>([]);
 
   useEffect(() => {
     revealedRef.current = isRevealed;
     if (isRevealed) {
       setGlintPos(null);
+      setScratchPct(100);
+    } else {
+      setScratchPct(0);
     }
-  }, [isRevealed]);
+  }, [isRevealed, reason.id]);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -323,9 +338,12 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     }
 
     const pct = Math.min(100, Math.round((cleared / Math.max(1, sampled)) * 100));
+    setScratchPct(Math.min(100, Math.round((pct / REVEAL_THRESHOLD_PCT) * 100)));
     if (pct >= REVEAL_THRESHOLD_PCT && !revealedRef.current) {
       revealedRef.current = true;
       setGlintPos(null);
+      setScratchPct(100);
+      triggerHaptic([14, 24, 14]);
       ambientAudio.playSparkleChime();
       fireSparkleBurst();
       onReveal();
@@ -398,6 +416,7 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     if (strokeCountRef.current % 2 === 0) {
       spawnFlakes(pt.x, pt.y);
     }
+    ambientAudio.playScratchSound();
     strokeCountRef.current++;
     if (strokeCountRef.current % 5 === 0) {
       checkProgress();
@@ -436,9 +455,41 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     }
   };
 
+  const handleRevealedPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isRevealed) return;
+    swipeStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleRevealedPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isRevealed || !swipeStartRef.current) return;
+    const dx = e.clientX - swipeStartRef.current.x;
+    const dy = e.clientY - swipeStartRef.current.y;
+    swipeStartRef.current = null;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      onSwipeCard?.(dx < 0 ? 1 : -1);
+    }
+  };
+
+  const handleRevealedDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isRevealed) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const id = Date.now() + Math.random();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    triggerHaptic(10);
+    ambientAudio.playSoftTap(1.2);
+    setHearts((prev) => [...prev.slice(-6), { id, x, y }]);
+    window.setTimeout(() => {
+      setHearts((prev) => prev.filter((h) => h.id !== id));
+    }, 850);
+  };
+
   return (
     <div
       ref={containerRef}
+      onPointerDown={handleRevealedPointerDown}
+      onPointerUp={handleRevealedPointerUp}
+      onDoubleClick={handleRevealedDoubleClick}
       className="relative h-full w-full rounded-[28px] overflow-hidden bg-[#0a040c] ring-1 ring-white/25 shadow-[0_36px_95px_-12px_rgba(0,0,0,0.95)] select-none"
     >
       {/* Pure, gallery-grade 9:16 portrait memory underneath */}
@@ -474,8 +525,15 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
           style={{ boxShadow: 'inset 0 0 42px rgba(0, 0, 0, 0.25)' }}
         />
 
-        {/* Whisper-minimal top-right status indicator */}
-        <div className="relative z-10 flex items-center justify-end px-3.5 pt-3.5">
+        {/* Whisper-minimal top-right status indicator + live scratch progress */}
+        <div className="relative z-10 flex items-center justify-between px-3.5 pt-3.5">
+          {!isRevealed && scratchPct > 0 ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#ffd166] backdrop-blur-md ring-1 ring-white/15">
+              {scratchPct}%
+            </span>
+          ) : (
+            <span />
+          )}
           <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 backdrop-blur-md ring-1 ring-white/15">
             {isRevealed ? (
               <>
@@ -486,6 +544,22 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
             )}
           </span>
         </div>
+
+        {/* Floating double-tap hearts */}
+        <AnimatePresence>
+          {hearts.map((h) => (
+            <motion.div
+              key={h.id}
+              initial={{ x: h.x - 16, y: h.y - 16, scale: 0.4, opacity: 1 }}
+              animate={{ y: h.y - 70, scale: 1.4, opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.78, ease: 'easeOut' }}
+              className="pointer-events-none absolute z-40"
+            >
+              <Heart className="w-8 h-8 text-[#ff4f8b] fill-[#ff4f8b] drop-shadow-[0_4px_12px_rgba(255,79,139,0.75)]" />
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {/* Clean, airy bottom editorial scrim keeping her face/video clear */}
         <motion.div
@@ -631,7 +705,7 @@ export const Stage4ReasonsLove: React.FC<Stage4ReasonsLoveProps> = ({ onNext }) 
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.55 }}
-        className="mb-3 flex flex-col items-center"
+        className="mb-2 flex flex-col items-center"
       >
         <span className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/45">
           Chapter 04 · {seenCount} / {LOVE_REASONS.length} Revealed
@@ -643,7 +717,7 @@ export const Stage4ReasonsLove: React.FC<Stage4ReasonsLoveProps> = ({ onNext }) 
 
       {/* Large Focal 9:16 Cinema Scratch Card */}
       <div
-        style={{ height: 'min(65dvh, 575px, calc(88vw * 16 / 9))' }}
+        style={{ height: 'min(58dvh, 520px, calc(84vw * 16 / 9))' }}
         className="relative aspect-[9/16] flex items-center justify-center"
       >
         {/* Ambient cinema halo radiating onto the faded dark backdrop */}
@@ -677,6 +751,7 @@ export const Stage4ReasonsLove: React.FC<Stage4ReasonsLoveProps> = ({ onNext }) 
               total={LOVE_REASONS.length}
               isRevealed={isCurrentRevealed}
               onReveal={handleRevealCurrent}
+              onSwipeCard={goCard}
             />
           </motion.div>
         </AnimatePresence>

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Mic, MicOff, Wind, ArrowRight, Flame as FlameIcon } from 'lucide-react';
 import { fireFireworks } from '../../utils/confetti';
 import { ambientAudio } from '../../utils/ambientAudio';
+import { triggerHaptic } from '../../utils/haptics';
 import { Kicker, PrimaryButton, SparkleIcon } from '../ui/Primitives';
 import { RealisticCake } from '../cake/RealisticCake';
 import { AirflowEffect } from '../cake/AirflowEffect';
@@ -28,6 +29,13 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
   const blowProgressRef = useRef(0);
   const blowIntensityRef = useRef(0);
   const cakeRef = useRef<HTMLDivElement | null>(null);
+  const swipeBlowRef = useRef<{ active: boolean; lastX: number; lastY: number; acc: number }>({
+    active: false,
+    lastX: 0,
+    lastY: 0,
+    acc: 0,
+  });
+  const swipeDecayTimerRef = useRef<number | null>(null);
 
   const litCount = candlesLit.filter(Boolean).length;
   const allOut = litCount === 0;
@@ -60,6 +68,8 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
         const chosenIdx = litIndices.splice(pick, 1)[0];
         next[chosenIdx] = false;
       }
+      ambientAudio.playCandlePuff();
+      triggerHaptic(8);
       return next;
     });
   }, []);
@@ -69,6 +79,8 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
       if (!prev[index]) return prev;
       const next = [...prev];
       next[index] = false;
+      ambientAudio.playCandlePuff();
+      triggerHaptic(8);
       return next;
     });
   }, []);
@@ -81,7 +93,8 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
       setBlowLevel(0);
       blowIntensityRef.current = 0;
       stopMic();
-      ambientAudio.playSparkleChime();
+      ambientAudio.playWishGranted();
+      triggerHaptic([20, 40, 20, 50]);
       cleanup = fireFireworks(4500);
     }
     return () => cleanup?.();
@@ -90,10 +103,12 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
   useEffect(() => {
     return () => {
       stopMic();
+      if (swipeDecayTimerRef.current) window.clearTimeout(swipeDecayTimerRef.current);
     };
   }, [stopMic]);
 
   const enableMicrophone = async () => {
+    triggerHaptic(10);
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setMicStatus('denied');
       return;
@@ -131,13 +146,12 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
           sumSq += normalized * normalized;
         }
         const rms = Math.sqrt(sumSq / timeData.length);
-        const scaled = Math.min(1, Math.max(0, (rms - 0.014) * 5.6));
+        const scaled = Math.min(1, Math.max(0, (rms - 0.014) * 5.8));
 
-        // Drive continuous 60fps airflow cloud & flame bending
         blowIntensityRef.current = scaled;
         setBlowLevel(scaled);
 
-        const blowingNow = scaled > 0.18;
+        const blowingNow = scaled > 0.17;
         setIsBlowing(blowingNow);
 
         if (blowingNow) {
@@ -156,56 +170,113 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
     }
   };
 
+  // Finger-swipe wind gesture over the cake so she can also blow candles out with a swipe!
+  const handleCakePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (allOut) return;
+    swipeBlowRef.current = { active: true, lastX: e.clientX, lastY: e.clientY, acc: 0 };
+  };
+
+  const handleCakePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (allOut || !swipeBlowRef.current.active) return;
+    const dist = Math.hypot(
+      e.clientX - swipeBlowRef.current.lastX,
+      e.clientY - swipeBlowRef.current.lastY
+    );
+    swipeBlowRef.current.lastX = e.clientX;
+    swipeBlowRef.current.lastY = e.clientY;
+    swipeBlowRef.current.acc += dist;
+
+    const strength = Math.min(1, Math.max(0.32, dist / 24));
+    blowIntensityRef.current = strength;
+    setBlowLevel(strength);
+    setIsBlowing(true);
+
+    if (swipeDecayTimerRef.current) window.clearTimeout(swipeDecayTimerRef.current);
+    swipeDecayTimerRef.current = window.setTimeout(() => {
+      if (micStatus !== 'active') {
+        blowIntensityRef.current = 0;
+        setBlowLevel(0);
+        setIsBlowing(false);
+      }
+    }, 180);
+
+    if (swipeBlowRef.current.acc > 42) {
+      swipeBlowRef.current.acc = 0;
+      extinguishBatch(2);
+    }
+  };
+
+  const handleCakePointerUp = () => {
+    swipeBlowRef.current.active = false;
+  };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -24 }}
       transition={{ duration: 0.5 }}
-      className="w-full flex flex-col items-center text-center"
+      className="relative w-full flex flex-col items-center text-center"
     >
-      {/* Full-screen volumetric airflow mist rising from bottom toward the candles */}
+      {/* Full-screen volumetric airflow mist */}
       <AirflowEffect
         blowIntensityRef={blowIntensityRef}
         targetRef={cakeRef}
         hasLitCandles={!allOut}
       />
 
+      {/* Shooting Wish Star when all 21 candles go out */}
+      {allOut && (
+        <div
+          aria-hidden
+          className="shooting-star pointer-events-none fixed top-12 left-0 z-20 h-[2px] w-28 rounded-full bg-gradient-to-r from-transparent via-[#fff7cc] to-[#ffd166] shadow-[0_0_16px_4px_rgba(255,220,130,0.9)]"
+        />
+      )}
+
       <Kicker className="text-[#ffd166]">Chapter 08 · 21 Candles</Kicker>
-      <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white mt-1 tracking-tight">
+      <h2 className="font-display text-2xl sm:text-4xl font-extrabold text-white mt-0.5 tracking-tight">
         Make A{' '}
         <span className="font-serif italic font-normal text-[#ffd166]">Wish, Doha</span> 🎂
       </h2>
-      <p className="text-xs sm:text-sm text-[#ffd6e0]/90 mt-1.5 max-w-md leading-relaxed">
-        Close your eyes, make your 21st birthday wish, and blow out all 21 candles for real! Allow microphone permission so I can feel your breath. ❤️
+      <p className="text-[11px] sm:text-sm text-[#ffd6e0]/90 mt-1 max-w-md leading-snug">
+        Close your eyes, make your 21st wish, and blow into your mic — or swipe across the flames!
       </p>
 
-      {/* Subtle lit counter pill */}
-      <div className="mt-2.5 inline-flex items-center gap-2 rounded-full glass px-3.5 py-1 text-[11px] font-extrabold tracking-[0.18em] uppercase text-[#ffe8b3]">
+      {/* Lit counter pill */}
+      <div className="mt-2 inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[10px] font-extrabold tracking-[0.18em] uppercase text-[#ffe8b3]">
         <FlameIcon className={`w-3.5 h-3.5 ${allOut ? 'text-white/40' : 'text-[#ffd166]'}`} />
         <span>{allOut ? 'Wish Granted ✨' : `${litCount} / ${TOTAL_CANDLES} Candles Lit`}</span>
       </div>
 
-      {/* Photorealistic 2-Tier Patisserie Cake with 21 Candles */}
-      <RealisticCake
-        candlesLit={candlesLit}
-        blowLevel={blowLevel}
-        isBlowing={isBlowing}
-        allOut={allOut}
-        onExtinguishCandle={extinguishSingle}
-        cakeRef={cakeRef}
-      />
+      {/* Interactive 21-Candle Cake (supports both mic blow & finger-wind swipe + tap) */}
+      <div
+        onPointerDown={handleCakePointerDown}
+        onPointerMove={handleCakePointerMove}
+        onPointerUp={handleCakePointerUp}
+        onPointerCancel={handleCakePointerUp}
+        className="w-full flex justify-center touch-none"
+      >
+        <RealisticCake
+          candlesLit={candlesLit}
+          blowLevel={blowLevel}
+          isBlowing={isBlowing}
+          allOut={allOut}
+          onExtinguishCandle={extinguishSingle}
+          cakeRef={cakeRef}
+          className="my-1 max-w-[min(80vw,330px,42dvh)] sm:max-w-[385px]"
+        />
+      </div>
 
       {/* Controls / Finale */}
       {!allOut ? (
-        <div className="relative z-30 w-full max-w-md space-y-3 mt-1">
+        <div className="relative z-30 w-full max-w-md space-y-2 mt-0.5">
           {micStatus === 'active' ? (
-            <div className="space-y-2.5">
-              <div className="mx-auto w-72 glass rounded-2xl px-4 py-2.5 border border-[#ffd166]/25">
-                <div className="flex justify-between items-center gap-2 text-[11px] font-bold text-white/90 mb-1.5">
+            <div className="space-y-1.5">
+              <div className="mx-auto w-72 glass rounded-2xl px-3.5 py-2 border border-[#ffd166]/25">
+                <div className="flex justify-between items-center gap-2 text-[11px] font-bold text-white/90 mb-1">
                   <span className="flex items-center gap-1.5">
                     <Wind className="w-3.5 h-3.5 text-[#ffd166]" />
-                    {isBlowing ? 'Keep blowing, you’ve got this!' : 'Blow from your mouth!'}
+                    {isBlowing ? 'Keep blowing, you’ve got this!' : 'Blow at your screen!'}
                   </span>
                   <span className="text-[#ffd166]">
                     {isBlowing ? 'Blowing 💨' : 'Listening 🎙️'}
@@ -219,35 +290,33 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
                   />
                 </div>
               </div>
-              <p className="text-xs text-[#ffe8b3]/85 font-medium">
+              <p className="text-[11px] text-[#ffe8b3]/85 font-medium">
                 {litCount === TOTAL_CANDLES
-                  ? 'Take a deep breath, lean in close, and blow steadily at your screen ✨'
-                  : `Almost there! Only ${litCount} ${litCount === 1 ? 'candle' : 'candles'} left — give one more big blow! 🌬️`}
+                  ? 'Take a deep breath and blow steadily — or swipe across the flames 🌬️'
+                  : `Almost there! Only ${litCount} ${litCount === 1 ? 'candle' : 'candles'} left! 🌬️`}
               </p>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2.5">
+            <div className="flex flex-col items-center gap-1.5">
               <PrimaryButton
                 variant="gold"
                 onClick={() => void enableMicrophone()}
-                className="px-6 py-3 text-sm"
+                className="px-6 py-2.5 text-xs sm:text-sm"
               >
                 <Mic className="w-4 h-4" />
                 {micStatus === 'denied'
-                  ? 'Allow Microphone & Try Again'
-                  : 'Allow Microphone & Blow Candles'}
+                  ? 'Retry Microphone'
+                  : 'Allow Mic & Blow Candles'}
               </PrimaryButton>
 
               {micStatus === 'idle' ? (
-                <p className="text-xs text-[#ffd6e0]/80 max-w-xs leading-relaxed">
-                  Tap <span className="font-bold text-[#ffd166]">“Allow”</span> when asked for microphone access, then take a deep breath and blow gently at your screen.
+                <p className="text-[11px] text-[#ffd6e0]/75 max-w-xs leading-snug">
+                  Tap <span className="font-bold text-[#ffd166]">“Allow”</span> to blow for real, or <span className="font-bold text-white">swipe/tap</span> the flames.
                 </p>
               ) : (
-                <p className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-[#ffd166] max-w-sm leading-relaxed">
+                <p className="inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#ffd166] max-w-xs leading-snug">
                   <MicOff className="w-3.5 h-3.5 shrink-0" />
-                  <span>
-                    Please allow microphone permission in your browser settings so you can blow out the candles with your breath!
-                  </span>
+                  <span>No mic needed — swipe your finger across the flames to blow them out!</span>
                 </p>
               )}
             </div>
@@ -257,18 +326,25 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="relative z-30 mt-2 max-w-md space-y-4"
+          className="relative z-30 mt-1 w-full max-w-md space-y-3"
         >
-          <div className="glass rounded-3xl p-5 border border-[#ffd166]/45">
-            <p className="font-display text-2xl font-extrabold gold-text">
+          <div className="glass rounded-2xl px-4 py-3 border border-[#ffd166]/45">
+            <p className="font-display text-xl sm:text-2xl font-extrabold gold-text">
               All 21 Candles Blown Out! 🎉❤️
             </p>
-            <p className="text-xs sm:text-sm text-white/85 mt-1">
+            <p className="text-xs text-white/85 mt-0.5">
               May every single wish you just made come true, my love.
             </p>
           </div>
 
-          <PrimaryButton variant="pink" onClick={onNext}>
+          <PrimaryButton
+            variant="pink"
+            onClick={() => {
+              triggerHaptic(14);
+              onNext();
+            }}
+            className="px-7 py-3 text-sm"
+          >
             <SparkleIcon size={16} />
             <span>Open Final Birthday Message</span>
             <ArrowRight className="w-4 h-4" />
