@@ -124,7 +124,7 @@ export const Stage6MusicCorner: React.FC<Stage6MusicCornerProps> = ({
       transition={{ duration: 0.5 }}
       className="w-full flex flex-col items-center text-center"
     >
-      <Kicker className="text-[#1ed760]">Chapter 07 · Her Soundtrack</Kicker>
+      <Kicker className="text-[#1ed760]">Chapter 08 · Her Soundtrack</Kicker>
       <h2 className="font-display text-xl sm:text-3xl font-extrabold text-white mt-1 max-w-md leading-tight tracking-tight">
         Every Love Story Has a{' '}
         <span className="font-serif italic font-normal text-[#1ed760]">Soundtrack.</span>

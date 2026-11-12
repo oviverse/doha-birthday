@@ -414,7 +414,9 @@ export const StoryShell: React.FC<StoryShellProps> = ({
             className="glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/90 hover:bg-white/20 active:scale-95 transition cursor-pointer"
           >
             <Compass className="w-3 h-3 text-[#ffd166]" />
-            <span className="tabular-nums text-white/60">{theme.chapter}/0{totalStages}</span>
+            <span className="tabular-nums text-white/60">
+              {theme.chapter}/{String(totalStages).padStart(2, '0')}
+            </span>
             <span className="truncate max-w-[110px]">{theme.label}</span>
           </button>
 

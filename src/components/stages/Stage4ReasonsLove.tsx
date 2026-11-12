@@ -708,7 +708,7 @@ export const Stage4ReasonsLove: React.FC<Stage4ReasonsLoveProps> = ({ onNext }) 
         className="mb-2 flex flex-col items-center"
       >
         <span className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/45">
-          Chapter 04 · {seenCount} / {LOVE_REASONS.length} Revealed
+          Chapter 05 · {seenCount} / {LOVE_REASONS.length} Revealed
         </span>
         <h2 className="font-serif italic text-2xl sm:text-3xl text-white/95 tracking-tight mt-0.5">
           Reasons I Love You

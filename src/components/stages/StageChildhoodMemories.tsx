@@ -400,7 +400,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
         className="mb-2 flex flex-col items-center"
       >
         <span className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/45">
-          Chapter 05 · Childhood
+          Chapter 06 · Childhood
         </span>
         <h2 className="font-serif italic text-2xl sm:text-3xl text-white/95 tracking-tight mt-0.5">
           Little Doha

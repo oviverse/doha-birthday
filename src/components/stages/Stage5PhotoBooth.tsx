@@ -6,8 +6,7 @@ import {
   RefreshCw,
   ArrowRight,
   Sparkles,
-  AlertCircle,
-  Upload,
+  Heart,
 } from 'lucide-react';
 import { fireCelebrationConfetti } from '../../utils/confetti';
 import { ambientAudio } from '../../utils/ambientAudio';
@@ -58,11 +57,11 @@ const CAPTURED_CAPTIONS = [
 export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timersRef = useRef<number[]>([]);
 
   const [cameraState, setCameraState] = useState<'idle' | 'starting' | 'ready' | 'denied'>('idle');
+  const [denialCount, setDenialCount] = useState(0);
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
@@ -92,6 +91,9 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
   }, []);
 
   const attachStreamToVideo = useCallback(async () => {
@@ -116,16 +118,36 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     setCameraState('starting');
     stopCamera();
 
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } },
         audio: false,
       });
+    } catch {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: false,
+        });
+      } catch {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } catch {
+          setDenialCount((prev) => prev + 1);
+          setCameraState('denied');
+          return;
+        }
+      }
+    }
+
+    if (stream) {
       streamRef.current = stream;
       await attachStreamToVideo();
       setCameraState('ready');
-    } catch {
-      setCameraState('denied');
     }
   }, [attachStreamToVideo, stopCamera]);
 
@@ -264,23 +286,6 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     }, 2250);
   };
 
-  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        ambientAudio.playCameraShutter();
-        triggerHaptic(14);
-        renderSourceToPolaroid(img, img.naturalWidth, img.naturalHeight, false);
-      };
-      img.src = String(reader.result);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
   const handleRetake = () => {
     triggerHaptic(8);
     clearScheduledTimers();
@@ -303,7 +308,22 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     link.click();
   };
 
-  const activePrompt = countdown !== null ? COUNTDOWN_LINES[countdown] : SMILE_PROMPTS[promptIndex];
+  const handleShutterClick = () => {
+    if (cameraState === 'denied' || cameraState === 'idle') {
+      void startCamera();
+      return;
+    }
+    if (cameraState === 'ready' && countdown === null) {
+      handleCapture();
+    }
+  };
+
+  const activePrompt =
+    cameraState === 'denied'
+      ? 'Please allow camera access to take your birthday photo! 💖'
+      : countdown !== null
+        ? COUNTDOWN_LINES[countdown]
+        : SMILE_PROMPTS[promptIndex];
 
   return (
     <motion.div
@@ -313,20 +333,13 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
       transition={{ duration: 0.5 }}
       className="w-full flex flex-col items-center text-center"
     >
-      <Kicker className="text-[#ffb3d9]">Chapter 06 · Photo Studio</Kicker>
+      <Kicker className="text-[#ffb3d9]">Chapter 07 · Photo Studio</Kicker>
       <h2 className="font-display text-2xl sm:text-4xl font-extrabold text-white mt-0.5 tracking-tight">
         Birthday{' '}
         <span className="font-serif italic font-normal text-[#ff8fab]">Photo Booth</span>
       </h2>
 
       <canvas ref={canvasRef} className="hidden" />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFilePick}
-        className="hidden"
-      />
 
       {/* COMPACT PHOTO BOOTH CONSOLE */}
       <div className="mt-2.5 w-full max-w-[365px] rounded-[26px] p-[2.5px] bg-gradient-to-b from-[#e4c1d0]/45 via-[#8d5b7a]/35 to-[#2b1a33]/80 shadow-[0_28px_65px_-14px_rgba(0,0,0,0.85)]">
@@ -375,7 +388,11 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
               <button
                 type="button"
                 onClick={() => {
-                  if (countdown === null) setPromptIndex((prev) => (prev + 1) % SMILE_PROMPTS.length);
+                  if (cameraState === 'denied') {
+                    void startCamera();
+                  } else if (countdown === null) {
+                    setPromptIndex((prev) => (prev + 1) % SMILE_PROMPTS.length);
+                  }
                 }}
                 className="mt-2 w-full rounded-xl bg-[#0b0813] border border-[#ff8fab]/30 px-2.5 py-1.5 cursor-pointer hover:border-[#ff8fab]/55 transition text-center"
               >
@@ -427,35 +444,43 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
                   )}
 
                   {cameraState === 'starting' && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/92 p-4 text-white/85 text-xs">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/92 p-4 text-white/85 text-xs z-20">
                       <Sparkles className="w-6 h-6 text-[#ff8fab] animate-spin mb-1.5" />
                       Warming up studio lens...
                     </div>
                   )}
 
                   {cameraState === 'denied' && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/95 p-4 text-center">
-                      <AlertCircle className="w-7 h-7 text-[#ffd166] mb-1.5" />
-                      <p className="text-xs font-bold text-white mb-1">Camera permission needed</p>
-                      <p className="text-[11px] text-white/70 mb-3">
-                        Allow camera or pick a photo from your gallery!
-                      </p>
-                      <div className="flex flex-wrap items-center justify-center gap-2">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/95 p-3.5 sm:p-4 text-center z-20">
+                      <motion.div
+                        initial={{ scale: 0.85, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.25 }}
+                        className="flex flex-col items-center max-w-[230px]"
+                      >
+                        <div className="w-11 h-11 rounded-full bg-[#ff4f8b]/20 border border-[#ff4f8b]/40 flex items-center justify-center mb-1.5 shadow-[0_0_18px_rgba(255,79,139,0.35)]">
+                          <Heart className="w-5 h-5 text-[#ff8fab] fill-[#ff8fab]/30 animate-pulse" />
+                        </div>
+                        <p className="text-xs sm:text-sm font-bold text-white mb-1">
+                          {denialCount > 1 ? "Please don't be shy! 🥺" : 'I want to see your smile! 💖'}
+                        </p>
+                        <p className="text-[10px] sm:text-[11px] text-white/80 leading-snug mb-2.5">
+                          {denialCount > 1
+                            ? 'Camera access is needed for your 21st birthday polaroid. Tap retry to ask again!'
+                            : 'The photo booth needs camera access to capture your birthday glow ✨'}
+                        </p>
                         <button
                           type="button"
                           onClick={() => void startCamera()}
-                          className="rounded-full bg-[#ff5fa2] px-3.5 py-1.5 text-[11px] font-bold text-white cursor-pointer"
+                          className="rounded-full bg-gradient-to-r from-[#ff5fa2] via-[#ff3d7f] to-[#c9184a] hover:brightness-110 px-4 py-1.5 text-[11px] sm:text-xs font-bold text-white shadow-lg shadow-[#ff3d7f]/40 cursor-pointer inline-flex items-center gap-1.5 active:scale-95 transition"
                         >
-                          Retry
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>{denialCount > 1 ? 'Ask Again / Try Again' : 'Allow Camera & Smile'}</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="rounded-full bg-white/15 border border-white/20 px-3.5 py-1.5 text-[11px] font-bold text-white cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <Upload className="w-3 h-3" /> Choose Photo
-                        </button>
-                      </div>
+                        <p className="text-[9px] text-white/50 mt-2 leading-tight">
+                          If your browser blocked it, tap 🔒 or <span className="font-semibold text-white/70">aA</span> in the address bar to allow Camera.
+                        </p>
+                      </motion.div>
                     </div>
                   )}
 
@@ -525,37 +550,33 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
               </div>
 
               {/* Tactile Shutter Deck */}
-              <div className="mt-2.5 flex items-center justify-center gap-4">
+              <div className="mt-3 flex flex-col items-center justify-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Pick photo from gallery"
-                  className="glass rounded-full px-3 py-2 text-[11px] font-bold text-white/80 hover:bg-white/15 cursor-pointer inline-flex items-center gap-1"
-                >
-                  <Upload className="w-3.5 h-3.5" /> Gallery
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCapture}
-                  disabled={cameraState !== 'ready' || countdown !== null}
-                  aria-label="Snap Birthday Photo"
-                  className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-b from-[#e9d8e0] via-[#b8a3b3] to-[#6a576b] p-[3.5px] shadow-[0_8px_20px_rgba(0,0,0,0.65)] active:translate-y-0.5 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer transition"
+                  onClick={handleShutterClick}
+                  disabled={cameraState === 'starting' || countdown !== null}
+                  aria-label={cameraState === 'ready' ? 'Snap Birthday Photo' : 'Enable Camera'}
+                  className={`group relative flex items-center justify-center w-14 h-14 sm:w-15 sm:h-15 rounded-full bg-gradient-to-b from-[#e9d8e0] via-[#b8a3b3] to-[#6a576b] p-[3.5px] shadow-[0_8px_22px_rgba(0,0,0,0.65)] active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition ${
+                    cameraState === 'denied'
+                      ? 'animate-pulse ring-2 ring-[#ff8fab]/70 ring-offset-2 ring-offset-[#110c1b]'
+                      : ''
+                  }`}
                 >
                   <span className="w-full h-full rounded-full bg-[#191224] p-[3px] flex items-center justify-center">
                     <span className="w-full h-full rounded-full bg-gradient-to-b from-[#ff7aa8] via-[#ff3d7f] to-[#c9184a] flex items-center justify-center group-hover:brightness-110 transition">
-                      <Camera className="w-5 h-5 text-white drop-shadow" />
+                      <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow" />
                     </span>
                   </span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={onNext}
-                  className="glass rounded-full px-3 py-2 text-[11px] font-bold text-white/75 hover:text-white cursor-pointer"
-                >
-                  Skip ›
-                </button>
+                <span className="text-[10px] font-bold text-white/60 tracking-wider">
+                  {cameraState === 'ready'
+                    ? countdown !== null
+                      ? 'SMILE!'
+                      : 'TAP TO SNAP'
+                    : cameraState === 'starting'
+                      ? 'WARMING UP...'
+                      : 'TAP TO ALLOW CAMERA'}
+                </span>
               </div>
             </>
           ) : (

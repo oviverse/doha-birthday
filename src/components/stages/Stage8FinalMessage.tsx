@@ -134,7 +134,7 @@ export const Stage8FinalMessage: React.FC<Stage8FinalMessageProps> = ({ onRestar
       </div>
 
       {/* Finale Header */}
-      <Kicker className="text-[#ffd166]">Chapter 09 · Forever Yours</Kicker>
+      <Kicker className="text-[#ffd166]">Chapter 10 · Forever Yours</Kicker>
 
       <h2 className="font-display text-2xl sm:text-4xl font-extrabold text-white mt-1 tracking-tight leading-[1.06]">
         <RevealText text="Happy 21st Birthday," delay={0.08} />

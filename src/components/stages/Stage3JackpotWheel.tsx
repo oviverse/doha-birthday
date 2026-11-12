@@ -106,7 +106,7 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
       transition={{ duration: 0.5 }}
       className="w-full flex flex-col items-center text-center"
     >
-      <Kicker className="text-[#ffcc4d]">Chapter 03 · 3 Spins</Kicker>
+      <Kicker className="text-[#ffcc4d]">Chapter 04 · 3 Spins</Kicker>
 
       <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight mt-0.5">
         <span className="neon-pink">LOVE</span>{' '}

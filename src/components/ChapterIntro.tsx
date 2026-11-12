@@ -8,7 +8,7 @@ interface ChapterIntroProps {
   onDone: () => void;
 }
 
-const INTRO_DURATION_MS = 1550;
+const INTRO_DURATION_MS = 2800;
 
 export const ChapterIntro: React.FC<ChapterIntroProps> = ({ stageIndex, onDone }) => {
   const theme = STAGE_THEMES[stageIndex] ?? STAGE_THEMES[0];
@@ -27,9 +27,8 @@ export const ChapterIntro: React.FC<ChapterIntroProps> = ({ stageIndex, onDone }
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, scale: 1.06 }}
       transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-      onClick={() => onDoneRef.current()}
       style={{ background: theme.introBg, color: theme.introText }}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center select-none overflow-hidden cursor-pointer"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center select-none overflow-hidden"
     >
       <div className="pointer-events-none fixed inset-0 grain-overlay" />
 

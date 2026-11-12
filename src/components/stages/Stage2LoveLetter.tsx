@@ -291,7 +291,7 @@ export const Stage2LoveLetter: React.FC<Stage2LoveLetterProps> = ({ onNext }) =>
       className="w-full flex flex-col items-center"
     >
       <div className="text-center mb-3">
-        <Kicker className="text-[#ffc2d1]">Chapter 02 · Love Letter</Kicker>
+        <Kicker className="text-[#ffc2d1]">Chapter 03 · Love Letter</Kicker>
         <h2 className="font-display text-2xl sm:text-4xl font-extrabold text-white mt-1 tracking-tight">
           Words From{' '}
           <span className="font-serif italic font-normal text-[#ffc2d1]">My Heart</span> 💌

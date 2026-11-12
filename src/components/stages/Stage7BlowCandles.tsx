@@ -233,7 +233,7 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
         />
       )}
 
-      <Kicker className="text-[#ffd166]">Chapter 08 · 21 Candles</Kicker>
+      <Kicker className="text-[#ffd166]">Chapter 09 · 21 Candles</Kicker>
       <h2 className="font-display text-2xl sm:text-4xl font-extrabold text-white mt-0.5 tracking-tight">
         Make A{' '}
         <span className="font-serif italic font-normal text-[#ffd166]">Wish, Doha</span> 🎂
