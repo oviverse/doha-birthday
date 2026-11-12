@@ -36,10 +36,10 @@ const FRAMES: Array<{ id: FrameId; label: string; badge: string; caption: string
 
 const SMILE_PROMPTS = [
   "Smile, Doha! Come on, don't be shy… you are so cute! 💖",
-  'Give the booth that gorgeous 21st birthday smile ✨',
-  'No hiding, birthday queen — the camera loves you! 👑',
+  'Give the camera that gorgeous 21st birthday smile ✨',
+  'No hiding, birthday queen — the lens loves you! 👑',
   'One pretty smile for me across the miles 📸',
-  'Look at you glowing… strike a pose for me! 😘',
+  'Look at you glowing… press the red shutter button! 😘',
 ];
 
 const COUNTDOWN_LINES: Record<number, string> = {
@@ -51,8 +51,10 @@ const COUNTDOWN_LINES: Record<number, string> = {
 const CAPTURED_CAPTIONS = [
   'See?! Told you — absolutely stunning! ❤️',
   'Looking gorgeous, Birthday Queen! 👑',
-  'That pretty smile just lit up the whole booth ✨',
+  'That pretty smile just lit up the whole room ✨',
 ];
+
+const RAINBOW_STRIPES = ['#d81b70', '#e6392a', '#f7b718', '#46b749', '#1b9be0'];
 
 export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -72,7 +74,11 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
   const [promptIndex, setPromptIndex] = useState(0);
   const [capturedCaptionIdx, setCapturedCaptionIdx] = useState(0);
 
-  const activeFilterObj = FILTERS.find((f) => f.id === selectedFilter) ?? FILTERS[0];
+  const activeFilterIdx = Math.max(
+    0,
+    FILTERS.findIndex((f) => f.id === selectedFilter)
+  );
+  const activeFilterObj = FILTERS[activeFilterIdx] ?? FILTERS[0];
   const activeFrameObj = FRAMES.find((f) => f.id === selectedFrame) ?? FRAMES[0];
 
   const clearScheduledTimers = useCallback(() => {
@@ -192,7 +198,6 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     ctx.lineWidth = 2;
     ctx.strokeRect(42, 42, w - 84, h - 176);
 
-    // Subtle decorative corner accents
     ctx.font = '32px sans-serif';
     if (selectedFrame === 'love') {
       ctx.fillText('💖', 56, 82);
@@ -247,7 +252,7 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     setCapturedCaptionIdx(Math.floor(Math.random() * CAPTURED_CAPTIONS.length));
     setDeveloping(true);
     setCapturedUrl(canvas.toDataURL('image/png'));
-    scheduleTimer(() => setDeveloping(false), 1000);
+    scheduleTimer(() => setDeveloping(false), 1100);
     fireCelebrationConfetti();
   };
 
@@ -309,6 +314,7 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
   };
 
   const handleShutterClick = () => {
+    if (capturedUrl) return;
     if (cameraState === 'denied' || cameraState === 'idle') {
       void startCamera();
       return;
@@ -318,12 +324,24 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     }
   };
 
-  const activePrompt =
-    cameraState === 'denied'
-      ? 'Please allow camera access to take your birthday photo! 💖'
+  const handleCycleFilter = () => {
+    if (capturedUrl || countdown !== null) return;
+    triggerHaptic(6);
+    const nextIdx = (activeFilterIdx + 1) % FILTERS.length;
+    setSelectedFilter(FILTERS[nextIdx].id);
+  };
+
+  const activePrompt = capturedUrl
+    ? developing
+      ? '🎞️ Developing your Polaroid print…'
+      : CAPTURED_CAPTIONS[capturedCaptionIdx]
+    : cameraState === 'denied'
+      ? 'Allow camera access to snap your birthday photo! 💖'
       : countdown !== null
         ? COUNTDOWN_LINES[countdown]
         : SMILE_PROMPTS[promptIndex];
+
+  const isLensCompact = Boolean(capturedUrl);
 
   return (
     <motion.div
@@ -334,334 +352,508 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
       className="w-full flex flex-col items-center text-center"
     >
       <Kicker className="text-[#ffb3d9]">Chapter 07 · Photo Studio</Kicker>
-      <h2 className="font-display text-2xl sm:text-4xl font-extrabold text-white mt-0.5 tracking-tight">
+      <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white mt-0.5 tracking-tight">
         Birthday{' '}
         <span className="font-serif italic font-normal text-[#ff8fab]">Photo Booth</span>
       </h2>
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* COMPACT PHOTO BOOTH CONSOLE */}
-      <div className="mt-2.5 w-full max-w-[365px] rounded-[26px] p-[2.5px] bg-gradient-to-b from-[#e4c1d0]/45 via-[#8d5b7a]/35 to-[#2b1a33]/80 shadow-[0_28px_65px_-14px_rgba(0,0,0,0.85)]">
-        <div className="relative rounded-[23px] bg-gradient-to-b from-[#2b2038] via-[#1c1528] to-[#110c1b] p-2.5 sm:p-3 overflow-hidden">
-          {/* 1. ILLUMINATED MARQUEE + OPTICS */}
-          <div className="rounded-xl bg-[#0e0a16] border border-white/10 px-2.5 py-1.5 shadow-[inset_0_2px_8px_rgba(0,0,0,0.9)] flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={`lb-${i}`}
-                  style={{ animationDelay: `${i * 0.25}s` }}
-                  className={`${
-                    countdown !== null ? 'bulb-fast' : 'bulb'
-                  } w-1.5 h-1.5 rounded-full bg-[#ffe299]`}
-                />
-              ))}
-            </div>
+      {/* Interactive prompt banner */}
+      <button
+        type="button"
+        onClick={() => {
+          if (capturedUrl) return;
+          if (cameraState === 'denied') {
+            void startCamera();
+          } else if (countdown === null) {
+            setPromptIndex((prev) => (prev + 1) % SMILE_PROMPTS.length);
+          }
+        }}
+        className="mt-1.5 w-full max-w-[360px] rounded-full bg-black/35 border border-white/15 backdrop-blur-md px-3.5 py-1 cursor-pointer hover:border-[#ff8fab]/55 transition text-center"
+      >
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={activePrompt}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+            className="text-[11px] sm:text-xs font-bold text-[#ffd6e6] leading-tight truncate"
+          >
+            {activePrompt}
+          </motion.p>
+        </AnimatePresence>
+      </button>
 
-            <div className="flex-1 rounded-lg bg-gradient-to-r from-[#ffedf3] via-[#fff7eb] to-[#ffedf3] px-2 py-0.5">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className="font-display text-[10px] font-extrabold tracking-[0.2em] text-[#3a1226]">
-                  PHOTO BOOTH
-                </span>
-                <span className="rounded bg-[#ff4f8b] px-1.5 py-[1px] text-[8px] font-extrabold tracking-wider text-white">
-                  21
-                </span>
-              </div>
-            </div>
+      {/* ============================================================ */}
+      {/* POLAROID LAND CAMERA (Supercolor 1000 Inspired Chassis)       */}
+      {/* ============================================================ */}
+      <div className="relative mt-2.5 w-full max-w-[368px] sm:max-w-[396px] flex flex-col items-center select-none drop-shadow-[0_24px_38px_rgba(0,0,0,0.68)]">
+        {/* Top dark viewfinder bridge notch */}
+        <div
+          aria-hidden
+          className="w-[24%] h-2 rounded-t-md bg-gradient-to-b from-[#3d3d42] via-[#26262a] to-[#171719] border-t border-white/15 shadow-sm"
+        />
 
-            <div className="flex items-center gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={`rb-${i}`}
-                  style={{ animationDelay: `${(i + 1) * 0.25}s` }}
-                  className={`${
-                    countdown !== null ? 'bulb-fast' : 'bulb'
-                  } w-1.5 h-1.5 rounded-full bg-[#ffe299]`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {!capturedUrl ? (
-            <>
-              {/* Prompt bar */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (cameraState === 'denied') {
-                    void startCamera();
-                  } else if (countdown === null) {
-                    setPromptIndex((prev) => (prev + 1) % SMILE_PROMPTS.length);
-                  }
+        {/* UPPER CREAM BODY */}
+        <div
+          className="relative w-full rounded-t-[18px] px-2.5 sm:px-3.5 pt-2.5 sm:pt-3 pb-0 overflow-hidden"
+          style={{
+            background:
+              'linear-gradient(180deg, #f5f0e3 0%, #ede6d3 52%, #e0d7bf 100%)',
+            boxShadow:
+              'inset 0 2px 2px rgba(255,255,255,0.85), inset 4px 0 10px rgba(170,155,125,0.18), inset -4px 0 10px rgba(170,155,125,0.18)',
+          }}
+        >
+          {/* 3-Column Upper Deck: [Badge + Red Shutter] | [Center Lens Viewfinder] | [Flash + Dial] */}
+          <div className="relative z-10 grid grid-cols-[64px_1fr_64px] sm:grid-cols-[74px_1fr_74px] items-center gap-1.5 sm:gap-2.5">
+            {/* LEFT FLANK: Supercolor 1000 Badge + Red Shutter Button */}
+            <div className="flex flex-col items-center justify-between self-stretch py-1">
+              {/* Brushed metallic cream label */}
+              <div
+                className="w-full rounded-[5px] border border-[#c5baa0]/80 px-1 py-1 text-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.85),0_1px_2px_rgba(0,0,0,0.12)]"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(0deg, rgba(0,0,0,0.025) 0px, rgba(0,0,0,0.025) 1px, transparent 1px, transparent 2px), linear-gradient(155deg, #f5eedb 0%, #e6dcc1 55%, #d9ceb0 100%)',
                 }}
-                className="mt-2 w-full rounded-xl bg-[#0b0813] border border-[#ff8fab]/30 px-2.5 py-1.5 cursor-pointer hover:border-[#ff8fab]/55 transition text-center"
               >
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={activePrompt}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.22 }}
-                    className="text-[11px] sm:text-xs font-bold text-[#ffd6e6] leading-tight truncate"
-                  >
-                    {activePrompt}
-                  </motion.p>
-                </AnimatePresence>
-              </button>
-
-              {/* Recessed Viewfinder */}
-              <div className="mt-2 mx-auto w-[min(66vw,250px,33dvh)] sm:w-[270px] rounded-2xl bg-[#07050c] p-1 shadow-[inset_0_4px_14px_rgba(0,0,0,0.95)] border border-white/10">
-                <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-[#0e0b18] ring-1 ring-white/10">
-                  <video
-                    ref={videoRef}
-                    playsInline
-                    muted
-                    autoPlay
-                    style={{ filter: activeFilterObj.css }}
-                    className="w-full h-full object-cover -scale-x-100 transition-[filter] duration-200"
-                  />
-
-                  {/* Live Polaroid Overlay */}
-                  <div className="pointer-events-none absolute inset-0 border-[8px] border-[#fff9f2]/92 flex flex-col justify-end">
-                    <div className="bg-[#fff9f2]/95 py-1 text-center">
-                      <span className="font-hand text-sm font-bold text-[#8b1e48]">
-                        {activeFrameObj.caption}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Camera HUD */}
-                  {cameraState === 'ready' && countdown === null && (
-                    <div className="pointer-events-none absolute top-3 left-3 right-3 flex items-center justify-between font-mono text-[8px] font-semibold text-white/80">
-                      <span className="rounded bg-black/65 px-1.5 py-0.5">
-                        ● LIVE
-                      </span>
-                      <span className="rounded bg-black/65 px-1.5 py-0.5">
-                        {activeFilterObj.label.toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  {cameraState === 'starting' && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/92 p-4 text-white/85 text-xs z-20">
-                      <Sparkles className="w-6 h-6 text-[#ff8fab] animate-spin mb-1.5" />
-                      Warming up studio lens...
-                    </div>
-                  )}
-
-                  {cameraState === 'denied' && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/95 p-3.5 sm:p-4 text-center z-20">
-                      <motion.div
-                        initial={{ scale: 0.85, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.25 }}
-                        className="flex flex-col items-center max-w-[230px]"
-                      >
-                        <div className="w-11 h-11 rounded-full bg-[#ff4f8b]/20 border border-[#ff4f8b]/40 flex items-center justify-center mb-1.5 shadow-[0_0_18px_rgba(255,79,139,0.35)]">
-                          <Heart className="w-5 h-5 text-[#ff8fab] fill-[#ff8fab]/30 animate-pulse" />
-                        </div>
-                        <p className="text-xs sm:text-sm font-bold text-white mb-1">
-                          {denialCount > 1 ? "Please don't be shy! 🥺" : 'I want to see your smile! 💖'}
-                        </p>
-                        <p className="text-[10px] sm:text-[11px] text-white/80 leading-snug mb-2.5">
-                          {denialCount > 1
-                            ? 'Camera access is needed for your 21st birthday polaroid. Tap retry to ask again!'
-                            : 'The photo booth needs camera access to capture your birthday glow ✨'}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => void startCamera()}
-                          className="rounded-full bg-gradient-to-r from-[#ff5fa2] via-[#ff3d7f] to-[#c9184a] hover:brightness-110 px-4 py-1.5 text-[11px] sm:text-xs font-bold text-white shadow-lg shadow-[#ff3d7f]/40 cursor-pointer inline-flex items-center gap-1.5 active:scale-95 transition"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                          <span>{denialCount > 1 ? 'Ask Again / Try Again' : 'Allow Camera & Smile'}</span>
-                        </button>
-                        <p className="text-[9px] text-white/50 mt-2 leading-tight">
-                          If your browser blocked it, tap 🔒 or <span className="font-semibold text-white/70">aA</span> in the address bar to allow Camera.
-                        </p>
-                      </motion.div>
-                    </div>
-                  )}
-
-                  <AnimatePresence>
-                    {countdown !== null && (
-                      <motion.div
-                        key={countdown}
-                        initial={{ scale: 1.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.7, opacity: 0 }}
-                        transition={{ duration: 0.22 }}
-                        className="absolute inset-0 flex items-center justify-center bg-black/30"
-                      >
-                        <div className="w-20 h-20 rounded-full border-2 border-[#ffd166]/80 flex items-center justify-center bg-black/55">
-                          <span className="font-display text-5xl font-extrabold text-[#ffd166]">
-                            {countdown}
-                          </span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {flash && <div className="absolute inset-0 bg-white z-30" />}
-                </div>
+                <p className="font-display text-[9px] sm:text-[10px] font-extrabold leading-none tracking-tight text-[#d92b1e]">
+                  Supercolor
+                </p>
+                <p className="font-display text-[11px] sm:text-[12px] font-bold leading-tight tracking-wider text-[#1e1e22] mt-0.5">
+                  1000
+                </p>
               </div>
 
-              {/* Filter & Frame Picker Strip */}
-              <div className="mt-2 space-y-1.5">
-                <div className="flex items-center justify-center gap-1 overflow-x-auto no-scrollbar">
-                  {FILTERS.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic(5);
-                        setSelectedFilter(f.id);
-                      }}
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition cursor-pointer ${
-                        selectedFilter === f.id
-                          ? 'bg-[#ff5fa2] text-white shadow'
-                          : 'bg-white/8 text-white/65 hover:bg-white/15'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-center gap-1.5">
-                  {FRAMES.map((fr) => (
-                    <button
-                      key={fr.id}
-                      type="button"
-                      onClick={() => {
-                        triggerHaptic(5);
-                        setSelectedFrame(fr.id);
-                      }}
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition cursor-pointer ${
-                        selectedFrame === fr.id
-                          ? 'bg-[#ffd166] text-[#2a0a26]'
-                          : 'bg-white/8 text-white/65 hover:bg-white/15'
-                      }`}
-                    >
-                      {fr.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tactile Shutter Deck */}
-              <div className="mt-3 flex flex-col items-center justify-center gap-1.5">
-                <button
+              {/* Iconic Red Shutter Button */}
+              <div className="flex flex-col items-center mt-2">
+                <motion.button
                   type="button"
+                  whileTap={{ scale: 0.9, y: 1.5 }}
                   onClick={handleShutterClick}
-                  disabled={cameraState === 'starting' || countdown !== null}
-                  aria-label={cameraState === 'ready' ? 'Snap Birthday Photo' : 'Enable Camera'}
-                  className={`group relative flex items-center justify-center w-14 h-14 sm:w-15 sm:h-15 rounded-full bg-gradient-to-b from-[#e9d8e0] via-[#b8a3b3] to-[#6a576b] p-[3.5px] shadow-[0_8px_22px_rgba(0,0,0,0.65)] active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition ${
-                    cameraState === 'denied'
-                      ? 'animate-pulse ring-2 ring-[#ff8fab]/70 ring-offset-2 ring-offset-[#110c1b]'
+                  disabled={cameraState === 'starting' || countdown !== null || Boolean(capturedUrl)}
+                  aria-label={
+                    cameraState === 'ready' ? 'Snap Birthday Photo' : 'Enable Camera'
+                  }
+                  className={`relative w-11 h-11 sm:w-12 sm:h-12 rounded-full p-[3px] bg-gradient-to-b from-[#c7bda4] to-[#efe8d5] shadow-[inset_0_2px_4px_rgba(0,0,0,0.38),0_1px_0_rgba(255,255,255,0.8)] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                    !capturedUrl && cameraState === 'ready' && countdown === null
+                      ? 'ring-2 ring-[#ff4d3d]/45 ring-offset-2 ring-offset-[#e8e0cc]'
+                      : ''
+                  } ${
+                    !capturedUrl && cameraState === 'denied'
+                      ? 'animate-pulse ring-2 ring-[#ff4f8b]/75 ring-offset-2 ring-offset-[#e8e0cc]'
                       : ''
                   }`}
                 >
-                  <span className="w-full h-full rounded-full bg-[#191224] p-[3px] flex items-center justify-center">
-                    <span className="w-full h-full rounded-full bg-gradient-to-b from-[#ff7aa8] via-[#ff3d7f] to-[#c9184a] flex items-center justify-center group-hover:brightness-110 transition">
-                      <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow" />
-                    </span>
-                  </span>
-                </button>
-                <span className="text-[10px] font-bold text-white/60 tracking-wider">
-                  {cameraState === 'ready'
-                    ? countdown !== null
+                  <span
+                    className="block w-full h-full rounded-full"
+                    style={{
+                      background:
+                        'radial-gradient(circle at 38% 28%, #ff7361 0%, #ea3826 48%, #b91c12 100%)',
+                      boxShadow:
+                        'inset 0 2px 3px rgba(255,255,255,0.45), inset 0 -3px 5px rgba(80,0,0,0.45), 0 3px 6px rgba(0,0,0,0.35)',
+                    }}
+                  />
+                </motion.button>
+                <span className="mt-1 font-display text-[8px] sm:text-[9px] font-extrabold tracking-[0.14em] uppercase text-[#5c5343]">
+                  {capturedUrl
+                    ? 'SNAPPED'
+                    : countdown !== null
                       ? 'SMILE!'
-                      : 'TAP TO SNAP'
-                    : cameraState === 'starting'
-                      ? 'WARMING UP...'
-                      : 'TAP TO ALLOW CAMERA'}
+                      : cameraState === 'ready'
+                        ? 'SHUTTER'
+                        : 'ALLOW'}
                 </span>
               </div>
-            </>
-          ) : (
-            <div className="mt-2 rounded-xl bg-[#0b0813] border border-emerald-400/25 px-3 py-2 text-center">
-              <p className="text-xs font-extrabold tracking-wide text-[#ffd6e6]">
-                {developing ? '🎞️ Developing your Love Polaroid…' : CAPTURED_CAPTIONS[capturedCaptionIdx]}
-              </p>
             </div>
-          )}
 
-          {/* Photo Dispenser Slot */}
-          <div className="mt-2.5 pt-0.5">
-            <div className="mx-auto w-[86%] h-2.5 rounded-full bg-[#050309] border-b border-white/15 shadow-[inset_0_3px_6px_rgba(0,0,0,0.95)]" />
+            {/* CENTER: Iconic Squircle Black Lens Barrel + Live Camera Viewfinder */}
+            <div className="flex flex-col items-center">
+              <div
+                className={`relative w-full mx-auto rounded-[22px] sm:rounded-[26px] p-[7px] sm:p-[8px] transition-all duration-300 ${
+                  isLensCompact
+                    ? 'max-w-[140px] sm:max-w-[155px]'
+                    : 'max-w-[196px] sm:max-w-[214px]'
+                }`}
+                style={{
+                  background:
+                    'linear-gradient(145deg, #2e2e33 0%, #161619 52%, #0c0c0e 100%)',
+                  boxShadow:
+                    '0 10px 18px -6px rgba(0,0,0,0.48), inset 0 1px 1px rgba(255,255,255,0.2), inset 0 -2px 4px rgba(0,0,0,0.8)',
+                }}
+              >
+                {/* Concentric ribbed lens ring */}
+                <div
+                  className="relative w-full aspect-square rounded-[16px] sm:rounded-[18px] p-[4px]"
+                  style={{
+                    backgroundImage:
+                      'repeating-radial-gradient(circle at 50% 50%, #1d1d21 0px, #1d1d21 2px, #0d0d10 2px, #0d0d10 4px)',
+                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.95)',
+                  }}
+                >
+                  {/* Glass Optics / Live Video Aperture */}
+                  <div className="relative w-full h-full rounded-[13px] sm:rounded-[15px] overflow-hidden bg-[#0a0c10] ring-1 ring-white/10">
+                    {!capturedUrl ? (
+                      <>
+                        <video
+                          ref={videoRef}
+                          playsInline
+                          muted
+                          autoPlay
+                          style={{ filter: activeFilterObj.css }}
+                          className="w-full h-full object-cover -scale-x-100 transition-[filter] duration-200"
+                        />
+
+                        {/* Subtle curved lens glass reflection */}
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute -top-6 -right-6 w-24 h-24 rounded-full bg-gradient-to-br from-white/18 via-white/5 to-transparent blur-[1px]"
+                        />
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 shadow-[inset_0_0_18px_rgba(0,0,0,0.55)] rounded-[13px] sm:rounded-[15px]"
+                        />
+
+                        {/* Live HUD inside lens */}
+                        {cameraState === 'ready' && countdown === null && (
+                          <div className="pointer-events-none absolute top-2 left-2 right-2 flex items-center justify-between font-mono text-[8px] font-bold text-white/85">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#ff3d5a] animate-pulse" />
+                              LIVE
+                            </span>
+                            <span className="rounded-full bg-black/60 px-1.5 py-0.5 backdrop-blur-sm">
+                              {activeFilterObj.label.toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+
+                        {cameraState === 'starting' && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0d1016]/92 p-3 text-white/85 text-[11px] z-20">
+                            <Sparkles className="w-5 h-5 text-[#ff8fab] animate-spin mb-1.5" />
+                            <span className="font-semibold leading-tight">
+                              Warming up lens…
+                            </span>
+                          </div>
+                        )}
+
+                        {cameraState === 'denied' && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#120d1d]/95 p-2.5 text-center z-20">
+                            <div className="w-8 h-8 rounded-full bg-[#ff4f8b]/20 border border-[#ff4f8b]/40 flex items-center justify-center mb-1">
+                              <Heart className="w-4 h-4 text-[#ff8fab] fill-[#ff8fab]/30 animate-pulse" />
+                            </div>
+                            <p className="text-[10px] sm:text-[11px] font-bold text-white leading-tight mb-1">
+                              {denialCount > 1
+                                ? "Don't be shy! 🥺"
+                                : 'See your smile 💖'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void startCamera()}
+                              className="rounded-full bg-gradient-to-r from-[#ff5fa2] to-[#c9184a] hover:brightness-110 px-2.5 py-1 text-[10px] font-bold text-white shadow cursor-pointer inline-flex items-center gap-1 active:scale-95 transition"
+                            >
+                              <Camera className="w-3 h-3" />
+                              <span>Allow</span>
+                            </button>
+                          </div>
+                        )}
+
+                        <AnimatePresence>
+                          {countdown !== null && (
+                            <motion.div
+                              key={countdown}
+                              initial={{ scale: 1.45, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.7, opacity: 0 }}
+                              transition={{ duration: 0.22 }}
+                              className="absolute inset-0 flex items-center justify-center bg-black/35 z-20"
+                            >
+                              <div className="w-16 h-16 rounded-full border-2 border-[#ffd166]/85 flex items-center justify-center bg-black/60">
+                                <span className="font-display text-4xl font-extrabold text-[#ffd166]">
+                                  {countdown}
+                                </span>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {flash && <div className="absolute inset-0 bg-white z-30" />}
+                      </>
+                    ) : (
+                      /* Dark optical glass reflection state while photo is ejected */
+                      <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-[#19202b] via-[#0e1218] to-[#060709]">
+                        <div className="w-[54%] h-[54%] rounded-full border border-white/10 bg-gradient-to-br from-[#1f2937]/70 to-[#07090d] shadow-inner flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full bg-white/15 blur-[1px] -translate-x-1.5 -translate-y-1.5" />
+                        </div>
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute top-2 right-2 w-10 h-10 rounded-full bg-white/10 blur-[1px]"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT FLANK: Flash Window + Exposure/Filter Dial */}
+            <div className="flex flex-col items-center justify-between self-stretch py-1">
+              {/* Square Viewfinder / Flash Window */}
+              <div
+                className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-[10px] flex items-center justify-center shadow-[0_3px_8px_rgba(0,0,0,0.32),inset_0_1px_1px_rgba(255,255,255,0.22)]"
+                style={{
+                  background:
+                    'linear-gradient(155deg, #3c3c42 0%, #1f1f23 65%, #121215 100%)',
+                }}
+              >
+                <div
+                  className={`w-4 h-4 sm:w-[18px] sm:h-[18px] rounded-[3px] transition-all duration-150 ${
+                    flash
+                      ? 'bg-white shadow-[0_0_24px_8px_rgba(255,255,255,0.95)] scale-110'
+                      : 'bg-gradient-to-br from-[#ffffff] via-[#eef1f6] to-[#cfd5df] shadow-[inset_0_1px_2px_rgba(0,0,0,0.18)]'
+                  }`}
+                />
+                {/* Diagonal glass sheen */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 rounded-[10px] bg-gradient-to-br from-white/15 via-transparent to-transparent"
+                />
+              </div>
+
+              {/* Circular Dark Exposure / Filter Dial */}
+              <div className="flex flex-col items-center mt-2">
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.92 }}
+                  animate={{ rotate: activeFilterIdx * 72 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                  onClick={handleCycleFilter}
+                  disabled={Boolean(capturedUrl) || countdown !== null}
+                  title={`Filter: ${activeFilterObj.label} (tap to switch)`}
+                  aria-label={`Cycle camera filter (current: ${activeFilterObj.label})`}
+                  className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full p-[3px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{
+                    background:
+                      'linear-gradient(160deg, #38383d 0%, #1d1d21 60%, #101013 100%)',
+                    boxShadow:
+                      '0 4px 8px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.2)',
+                  }}
+                >
+                  <span className="block w-full h-full rounded-full border border-white/10 bg-[#19191d] relative">
+                    <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1.5 rounded-full bg-[#ffd166]" />
+                  </span>
+                </motion.button>
+                <span className="mt-1 font-display text-[8px] sm:text-[9px] font-extrabold tracking-[0.12em] uppercase text-[#5c5343]">
+                  {activeFilterObj.label}
+                </span>
+              </div>
+            </div>
           </div>
+
+          {/* Vertical Rainbow Stripe directly under the center lens */}
+          <div className="relative flex justify-center h-4 sm:h-4.5 -mt-1.5">
+            <div className="flex h-full w-[40px] sm:w-[46px] shadow-[0_0_1px_rgba(0,0,0,0.15)]">
+              {RAINBOW_STRIPES.map((color) => (
+                <div key={color} className="flex-1 h-full" style={{ backgroundColor: color }} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ANGLED 3D CREAM SHELF / LEDGE */}
+        <div
+          className="relative w-[103%] h-4 sm:h-5 flex justify-center items-stretch border-t border-white/75"
+          style={{
+            background:
+              'linear-gradient(180deg, #f5f0e2 0%, #e5dec9 55%, #c7bea4 100%)',
+            clipPath: 'polygon(1.5% 0%, 98.5% 0%, 100% 100%, 0% 100%)',
+            boxShadow: 'inset 0 -2px 4px rgba(0,0,0,0.12)',
+          }}
+        >
+          <div
+            className="flex h-full w-[44px] sm:w-[50px]"
+            style={{ clipPath: 'polygon(5% 0%, 95% 0%, 100% 100%, 0% 100%)' }}
+          >
+            {RAINBOW_STRIPES.map((color) => (
+              <div key={color} className="flex-1 h-full" style={{ backgroundColor: color }} />
+            ))}
+          </div>
+        </div>
+
+        {/* LOWER CHARCOAL BLACK POLAROID BASE */}
+        <div
+          className="relative z-20 w-[103%] rounded-b-[18px] px-3 sm:px-4 pt-2 pb-2.5 border-t border-white/10"
+          style={{
+            background:
+              'linear-gradient(180deg, #323237 0%, #232327 45%, #161619 100%)',
+            boxShadow:
+              'inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -3px 8px rgba(0,0,0,0.65)',
+          }}
+        >
+          {/* Brushed Metallic Nameplate Strip */}
+          <div
+            className="w-full rounded-[4px] border border-white/10 px-2.5 py-1 flex items-center justify-between shadow-[inset_0_1px_3px_rgba(0,0,0,0.65)]"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 2px), linear-gradient(180deg, #2e2e33 0%, #202024 100%)',
+            }}
+          >
+            <span className="font-display text-[9px] sm:text-[10px] font-semibold tracking-[0.14em] text-white/85 uppercase">
+              POLAROID LAND CAMERA
+            </span>
+            <span className="font-mono text-[8px] sm:text-[9px] font-bold tracking-[0.14em] text-[#ff9ebb] uppercase">
+              DOHA · 21
+            </span>
+          </div>
+
+          {/* Photo Ejection Slot */}
+          <div className="mt-2 mx-2 h-2.5 sm:h-3 rounded-full bg-[#050507] border-b border-white/15 shadow-[inset_0_3px_6px_rgba(0,0,0,0.95)]" />
         </div>
       </div>
 
-      {/* DISPENSED POLAROID PRINT (slides out cleanly with zero page overflow) */}
+      {/* ============================================================ */}
+      {/* CONTROLS BELOW CAMERA (when taking photo)                    */}
+      {/* ============================================================ */}
+      {!capturedUrl && (
+        <div className="mt-2.5 w-full max-w-[380px] space-y-1.5">
+          {/* Filter Chips */}
+          <div className="flex items-center justify-center gap-1 overflow-x-auto no-scrollbar">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  triggerHaptic(5);
+                  setSelectedFilter(f.id);
+                }}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition cursor-pointer ${
+                  selectedFilter === f.id
+                    ? 'bg-[#ff5fa2] text-white shadow'
+                    : 'bg-white/10 text-white/70 hover:bg-white/18'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Polaroid Frame Theme Chips */}
+          <div className="flex items-center justify-center gap-1.5">
+            {FRAMES.map((fr) => (
+              <button
+                key={fr.id}
+                type="button"
+                onClick={() => {
+                  triggerHaptic(5);
+                  setSelectedFrame(fr.id);
+                }}
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                  selectedFrame === fr.id
+                    ? 'bg-[#ffd166] text-[#2a0a26]'
+                    : 'bg-white/10 text-white/70 hover:bg-white/18'
+                }`}
+              >
+                {fr.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Clear Snap Hint / Accessible Fallback Trigger */}
+          <div className="pt-0.5 flex justify-center">
+            <button
+              type="button"
+              onClick={handleShutterClick}
+              disabled={cameraState === 'starting' || countdown !== null}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/16 border border-white/15 px-3.5 py-1 text-[10px] sm:text-[11px] font-bold text-white/90 transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <span className="w-2 h-2 rounded-full bg-[#e6392a]" />
+              {cameraState === 'ready'
+                ? countdown !== null
+                  ? 'Smile for the camera…'
+                  : 'Tap red shutter button to snap'
+                : cameraState === 'starting'
+                  ? 'Warming up camera…'
+                  : 'Tap to allow camera'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* DISPENSED POLAROID PRINT (Ejects smoothly from bottom slot!)  */}
+      {/* ============================================================ */}
       <AnimatePresence>
         {capturedUrl && (
-          <motion.div
-            key="dispensed-print"
-            initial={{ y: -65, opacity: 0, scale: 0.92 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -30, opacity: 0, scale: 0.94 }}
-            transition={{ type: 'spring', stiffness: 190, damping: 20 }}
-            className="-mt-2 relative z-10 w-full max-w-[285px] sm:max-w-[310px] flex flex-col items-center"
+          <div
+            style={{ clipPath: 'inset(0px -40px -80px -40px)' }}
+            className="-mt-2.5 relative z-10 w-full max-w-[265px] sm:max-w-[285px] pt-1 flex flex-col items-center"
           >
-            <div className="w-full rounded-b-[20px] rounded-t-md bg-[#fcf7f0] p-2.5 pb-3 shadow-[0_26px_55px_-12px_rgba(0,0,0,0.85)] border border-[#e6d8c8]">
-              <div className="relative w-full aspect-square max-h-[34dvh] rounded-lg overflow-hidden bg-[#1a1523]">
-                <img
-                  src={capturedUrl}
-                  alt="Doha's 21st Birthday Polaroid"
-                  className="w-full h-full object-cover"
-                />
-                <motion.div
-                  initial={{ opacity: 0.78 }}
-                  animate={{ opacity: 0 }}
-                  transition={{ duration: 1.0, ease: 'easeOut' }}
-                  className="pointer-events-none absolute inset-0 bg-[#1a121e]"
-                />
-              </div>
-
-              <div className="mt-2 flex items-center justify-between px-1">
-                <p className="font-hand text-lg font-bold text-[#4a182d] leading-tight">
-                  Look how pretty you are! ❤️
-                </p>
-                <span className="font-mono text-[9px] font-bold tracking-widest text-[#9d6c7e] uppercase">
-                  DOHA · 21
-                </span>
-              </div>
-            </div>
-
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="mt-3 flex flex-wrap items-center justify-center gap-2"
+              key="dispensed-print"
+              initial={{ y: -150, opacity: 0.35, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: -90, opacity: 0, scale: 0.94 }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full flex flex-col items-center"
             >
-              <button
-                type="button"
-                onClick={handleRetake}
-                className="glass inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-white hover:bg-white/20 cursor-pointer"
+              <div className="w-full rounded-b-[18px] rounded-t-sm bg-[#fcf7f0] p-2 pb-2.5 shadow-[0_24px_50px_-12px_rgba(0,0,0,0.85)] border border-[#e6d8c8]">
+                <div className="relative w-full aspect-square max-h-[28dvh] rounded-md overflow-hidden bg-[#1a1523]">
+                  <img
+                    src={capturedUrl}
+                    alt="Doha's 21st Birthday Polaroid"
+                    className="w-full h-full object-cover"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0.84 }}
+                    animate={{ opacity: 0 }}
+                    transition={{ duration: 1.1, ease: 'easeOut' }}
+                    className="pointer-events-none absolute inset-0 bg-[#18121c]"
+                  />
+                </div>
+
+                <div className="mt-1.5 flex items-center justify-between px-1">
+                  <p className="font-hand text-base sm:text-lg font-bold text-[#4a182d] leading-tight">
+                    Look how pretty you are! ❤️
+                  </p>
+                  <span className="font-mono text-[9px] font-bold tracking-widest text-[#9d6c7e] uppercase">
+                    DOHA · 21
+                  </span>
+                </div>
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="mt-2.5 flex flex-wrap items-center justify-center gap-2 pb-1"
               >
-                <RefreshCw className="w-3.5 h-3.5" /> Retake
-              </button>
-              <PrimaryButton
-                variant="gold"
-                onClick={handleDownload}
-                className="px-4 py-2 text-xs"
-              >
-                <Download className="w-3.5 h-3.5" /> Save Photo
-              </PrimaryButton>
-              <PrimaryButton
-                variant="pink"
-                onClick={() => {
-                  triggerHaptic(12);
-                  onNext();
-                }}
-                className="px-5 py-2 text-xs"
-              >
-                Next <ArrowRight className="w-3.5 h-3.5" />
-              </PrimaryButton>
+                <button
+                  type="button"
+                  onClick={handleRetake}
+                  className="glass inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Retake
+                </button>
+                <PrimaryButton
+                  variant="gold"
+                  onClick={handleDownload}
+                  className="px-4 py-2 text-xs"
+                >
+                  <Download className="w-3.5 h-3.5" /> Save Photo
+                </PrimaryButton>
+                <PrimaryButton
+                  variant="pink"
+                  onClick={() => {
+                    triggerHaptic(12);
+                    onNext();
+                  }}
+                  className="px-4 py-2 text-xs"
+                >
+                  Next <ArrowRight className="w-3.5 h-3.5" />
+                </PrimaryButton>
+              </motion.div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </motion.div>
