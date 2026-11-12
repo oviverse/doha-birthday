@@ -1,0 +1,288 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-hand: 'Dancing Script', cursive;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-display);
+  }
+
+  ::selection {
+    background: #ff8fab;
+    color: #2a0a26;
+  }
+}
+
+/* ---------- Texture & surfaces ---------- */
+.grain-overlay {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.9'/></svg>");
+  opacity: 0.13;
+  mix-blend-mode: overlay;
+}
+
+.glass {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.cotton-paper {
+  background-color: #fcf5ea;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.72) 0%, transparent 65%),
+    radial-gradient(ellipse at 50% 100%, rgba(214, 174, 138, 0.16) 0%, transparent 60%),
+    linear-gradient(170deg, #fffdf9 0%, #fcf4e6 55%, #f6e8d4 100%);
+}
+
+.paper-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23p)' opacity='0.55'/></svg>");
+  opacity: 0.08;
+  mix-blend-mode: multiply;
+}
+
+.text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.16);
+}
+
+.shimmer-text {
+  background: linear-gradient(90deg, #ffd6e0 0%, #ff8fab 25%, #ffd166 50%, #ff8fab 75%, #ffd6e0 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+
+.gold-text {
+  background: linear-gradient(180deg, #fff6c9 0%, #ffd166 45%, #ff9f1c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.neon-pink {
+  color: #ffe1ec;
+  text-shadow: 0 0 4px #fff, 0 0 12px #ff4f8b, 0 0 28px #ff4f8b, 0 0 52px #ff1f6d;
+  animation: neon-flicker 4s infinite;
+}
+
+.neon-gold {
+  color: #fff6d6;
+  text-shadow: 0 0 4px #fff, 0 0 12px #ffcc4d, 0 0 28px #ffb000, 0 0 52px #ff8a00;
+}
+
+.btn-shine {
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-20deg);
+  animation: sweep 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.soft-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.soft-scroll::-webkit-scrollbar-thumb {
+  background: rgba(157, 23, 77, 0.25);
+  border-radius: 999px;
+}
+
+/* ---------- Marquee ---------- */
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 24s linear infinite;
+}
+
+/* ---------- Candles ---------- */
+.flame-flicker {
+  transform-origin: 50% 90%;
+  animation: flicker 0.9s ease-in-out infinite;
+}
+.flame-wind {
+  transform-origin: 50% 95%;
+  animation: flame-wind 0.16s ease-in-out infinite;
+}
+.flame-dance {
+  transform-origin: 50% 92%;
+  animation: flame-dance 1.15s ease-in-out infinite;
+}
+.smoke-puff {
+  animation: smoke 1.8s ease-out forwards;
+}
+.smoke-wisp {
+  transform-origin: 50% 100%;
+  animation: smoke-wisp 2.4s ease-out forwards;
+}
+.wick-ember {
+  animation: ember-fade 1.4s ease-out forwards;
+}
+
+.bulb {
+  animation: bulb 1.2s ease-in-out infinite;
+}
+.bulb-fast {
+  animation: bulb 0.36s ease-in-out infinite;
+}
+
+.twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+/* ---------- Keyframes ---------- */
+@keyframes shimmer {
+  to {
+    background-position: 300% 0;
+  }
+}
+@keyframes sweep {
+  0%, 55% {
+    left: -70%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes flicker {
+  0%, 100% {
+    transform: scale(1, 1) rotate(-2deg);
+  }
+  25% {
+    transform: scale(0.92, 1.1) rotate(2deg);
+  }
+  50% {
+    transform: scale(1.05, 0.93) rotate(-3deg);
+  }
+  75% {
+    transform: scale(0.95, 1.06) rotate(3deg);
+  }
+}
+@keyframes flame-wind {
+  0%, 100% {
+    transform: skewX(-26deg) scale(1.1, 0.75);
+  }
+  50% {
+    transform: skewX(-40deg) scale(1.2, 0.58);
+  }
+}
+@keyframes smoke {
+  0% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate(10px, -56px) scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes bulb {
+  0%, 100% {
+    opacity: 0.35;
+    box-shadow: none;
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 10px 3px rgba(255, 224, 138, 0.9);
+  }
+}
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes neon-flicker {
+  0%, 18%, 22%, 25%, 53%, 57%, 100% {
+    opacity: 1;
+  }
+  20%, 24%, 55% {
+    opacity: 0.55;
+  }
+}
+@keyframes flame-dance {
+  0%, 100% {
+    transform: scale(1, 1) rotate(-1.5deg);
+  }
+  22% {
+    transform: scale(0.94, 1.08) rotate(2deg);
+  }
+  48% {
+    transform: scale(1.04, 0.94) rotate(-2.5deg);
+  }
+  74% {
+    transform: scale(0.96, 1.05) rotate(1.8deg);
+  }
+}
+@keyframes smoke-wisp {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.7, 0.4);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.72;
+  }
+  55% {
+    transform: translateY(-28px) translateX(6px) scale(1.15, 1.1);
+    opacity: 0.42;
+  }
+  100% {
+    transform: translateY(-64px) translateX(-4px) scale(1.75, 1.45);
+    opacity: 0;
+  }
+}
+@keyframes ember-fade {
+  0% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  65% {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
