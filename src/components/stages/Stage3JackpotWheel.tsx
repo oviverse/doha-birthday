@@ -152,14 +152,18 @@ export const Stage3JackpotWheel: React.FC<Stage3JackpotWheelProps> = ({ onNext }
         }}
         className="relative flex items-center justify-center my-3 touch-pan-y"
       >
-        {/* Glow */}
+        {/* Glow (pure radial gradient — zero blur filter) */}
         <motion.div
           animate={{
-            scale: isSpinning && spinCount === 2 ? [1, 1.14, 1] : 1,
-            opacity: hasWonJackpot || (isSpinning && spinCount === 2) ? 0.95 : 0.45,
+            scale: isSpinning && spinCount === 2 ? [1, 1.12, 1] : 1,
+            opacity: hasWonJackpot || (isSpinning && spinCount === 2) ? 0.9 : 0.45,
           }}
           transition={{ duration: 0.7, repeat: isSpinning ? Infinity : 0 }}
-          className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#ff4fa3]/60 via-[#ffcc4d]/50 to-[#7b2ff7]/60 blur-2xl"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(255, 79, 163, 0.45) 0%, rgba(255, 204, 77, 0.32) 42%, rgba(123, 47, 247, 0.25) 62%, transparent 74%)',
+          }}
+          className="pointer-events-none absolute -inset-8 rounded-full"
         />
 
         {/* Top Pointer that physically flicks with every peg tick */}

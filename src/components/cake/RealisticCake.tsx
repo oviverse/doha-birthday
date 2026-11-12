@@ -223,7 +223,7 @@ const GoldLeafFlake: React.FC<{ x: number; y: number; rotate?: number; scale?: n
   />
 );
 
-export const RealisticCake: React.FC<RealisticCakeProps> = ({
+const RealisticCakeInner: React.FC<RealisticCakeProps> = ({
   candlesLit,
   blowLevel = 0,
   isBlowing = false,
@@ -387,57 +387,43 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
     [bottomDripSpecs]
   );
 
-  // Continuous flame reaction to blow strength
+  // Continuous flame reaction to blow strength (CSS vars override when driven externally)
   const effectiveBlow = isBlowing ? Math.max(0.28, blowLevel) : blowLevel;
-  const flameSkew = -effectiveBlow * 34;
-  const flameScaleY = Math.max(0.46, 1 - effectiveBlow * 0.44);
-  const flameScaleX = 1 + effectiveBlow * 0.24;
+  const fallbackSkew = `${(-effectiveBlow * 34).toFixed(1)}deg`;
+  const fallbackScaleY = Math.max(0.46, 1 - effectiveBlow * 0.44).toFixed(2);
+  const fallbackScaleX = (1 + effectiveBlow * 0.24).toFixed(2);
 
   return (
     <div
       ref={setMergedRef}
       className={`relative w-full aspect-[420/385] select-none flex items-center justify-center ${className}`}
     >
-      {/* Atmospheric warm candlelight room glow */}
+      {/* Atmospheric warm candlelight room glow (pure radial gradient — zero blur filter cost) */}
       <motion.div
         animate={{
           opacity: allOut ? 0.04 : 0.22 + lightRatio * 0.62,
           scale: isBlowing ? 0.96 : 1,
         }}
         transition={{ duration: 0.35 }}
-        className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 w-[92%] h-[68%] rounded-full blur-3xl"
+        className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 w-[115%] h-[82%] rounded-full"
         style={{
           background:
-            'radial-gradient(ellipse at 50% 45%, rgba(255, 198, 92, 0.55) 0%, rgba(255, 130, 50, 0.25) 45%, rgba(255, 70, 90, 0) 78%)',
+            'radial-gradient(ellipse at 50% 45%, rgba(255, 198, 92, 0.48) 0%, rgba(255, 130, 50, 0.2) 42%, rgba(255, 70, 90, 0) 72%)',
         }}
       />
 
       {/* SVG Photorealistic Two-Tier Patisserie Cake & Stand */}
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        className="w-full h-full block overflow-visible drop-shadow-[0_24px_38px_rgba(0,0,0,0.72)]"
+        className="w-full h-full block overflow-visible"
         aria-hidden="true"
       >
         <defs>
-          {/* Subtle organic buttercream grain texture */}
-          <filter id={`${uid}-buttercream-tex`} x="-5%" y="-5%" width="110%" height="110%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" seed="11" result="noise" />
-            <feColorMatrix
-              type="matrix"
-              values="0 0 0 0 1  0 0 0 0 0.96  0 0 0 0 0.92  0 0 0 0.065 0"
-              in="noise"
-              result="tinted"
-            />
-            <feComposite in="tinted" in2="SourceGraphic" operator="atop" />
-          </filter>
-
-          <filter id={`${uid}-soft-blur`} x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3.2" />
-          </filter>
-
-          <filter id={`${uid}-drip-shadow`} x="-10%" y="-10%" width="120%" height="130%">
-            <feGaussianBlur stdDeviation="1.8" />
-          </filter>
+          <radialGradient id={`${uid}-table-shadow`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(0,0,0,0.72)" />
+            <stop offset="65%" stopColor="rgba(0,0,0,0.42)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+          </radialGradient>
 
           {/* Pedestal porcelain & warm brass lighting */}
           <linearGradient id={`${uid}-stand-stem`} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -570,10 +556,9 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
         <ellipse
           cx="210"
           cy="364"
-          rx="145"
-          ry="13"
-          fill="rgba(0,0,0,0.68)"
-          filter={`url(#${uid}-soft-blur)`}
+          rx="156"
+          ry="16"
+          fill={`url(#${uid}-table-shadow)`}
         />
 
         {/* Pedestal Foot */}
@@ -613,8 +598,7 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
           cy="305"
           rx="153"
           ry="25"
-          fill="rgba(26, 6, 12, 0.56)"
-          filter={`url(#${uid}-drip-shadow)`}
+          fill="rgba(26, 6, 12, 0.48)"
         />
 
         {/* ================= 2. BOTTOM CAKE TIER ================= */}
@@ -622,7 +606,6 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
         <path
           d="M 63 207 L 63 300 A 147 27 0 0 0 357 300 L 357 207 Z"
           fill={`url(#${uid}-bottom-body)`}
-          filter={`url(#${uid}-buttercream-tex)`}
         />
 
         {/* Horizontal buttercream palette-knife texture ridges */}
@@ -657,8 +640,7 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
           <path
             d="M -58 -11 Q 0 -3 58 -11 L 56 14 Q 0 22 -56 14 Z"
             transform="translate(0, 2.5)"
-            fill="rgba(18, 2, 8, 0.55)"
-            filter={`url(#${uid}-drip-shadow)`}
+            fill="rgba(18, 2, 8, 0.45)"
           />
           {/* Gold bevel border */}
           <path
@@ -700,9 +682,8 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
         {/* Bottom tier ganache drips */}
         <path
           d={bottomDrips}
-          transform="translate(0, 2.6)"
-          fill="rgba(15, 2, 6, 0.45)"
-          filter={`url(#${uid}-drip-shadow)`}
+          transform="translate(0, 2.4)"
+          fill="rgba(15, 2, 6, 0.36)"
         />
         <path d={bottomDrips} fill={`url(#${uid}-ganache)`} />
         {/* Glossy wet specular highlights on bottom ganache drips */}
@@ -725,8 +706,7 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
           cy="198"
           rx="100"
           ry="20"
-          fill="rgba(10, 2, 4, 0.62)"
-          filter={`url(#${uid}-drip-shadow)`}
+          fill="rgba(10, 2, 4, 0.54)"
         />
 
         {/* ================= 3. TOP CAKE TIER ================= */}
@@ -734,7 +714,6 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
         <path
           d="M 116 114 L 116 196 A 94 18 0 0 0 304 196 L 304 114 Z"
           fill={`url(#${uid}-top-body)`}
-          filter={`url(#${uid}-buttercream-tex)`}
         />
 
         {/* Buttercream spatula texture & candlelight bounce on top tier */}
@@ -801,9 +780,8 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
         {/* Top tier ganache drips */}
         <path
           d={topDrips}
-          transform="translate(0, 2.2)"
-          fill="rgba(35, 10, 14, 0.32)"
-          filter={`url(#${uid}-drip-shadow)`}
+          transform="translate(0, 2.0)"
+          fill="rgba(35, 10, 14, 0.28)"
         />
         <path d={topDrips} fill={`url(#${uid}-ganache)`} />
         <g opacity={0.44 + lightRatio * 0.38}>
@@ -984,7 +962,7 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
                   width: 14 * fs,
                   height: 24 * fs,
                   transformOrigin: '50% 96%',
-                  transform: `skewX(${flameSkew.toFixed(1)}deg) scale(${flameScaleX.toFixed(2)}, ${flameScaleY.toFixed(2)})`,
+                  transform: `skewX(var(--flame-skew, ${fallbackSkew})) scale(var(--flame-sx, ${fallbackScaleX}), var(--flame-sy, ${fallbackScaleY}))`,
                   transition: 'transform 90ms ease-out',
                 }}
               >
@@ -998,13 +976,13 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
                     top: '48%',
                     transform: 'translate(-50%, -50%)',
                     background:
-                      'radial-gradient(circle, rgba(255,190,85,0.44) 0%, rgba(255,130,30,0.13) 48%, transparent 74%)',
+                      'radial-gradient(circle, rgba(255,190,85,0.46) 0%, rgba(255,130,30,0.14) 48%, transparent 74%)',
                   }}
                 />
 
-                {/* Animated inner flame body */}
+                {/* Animated inner flame body (compositor-only, zero drop-shadow filter) */}
                 <div
-                  className={effectiveBlow > 0.14 ? 'flame-wind' : 'flame-dance'}
+                  className={isBlowing || effectiveBlow > 0.14 ? 'flame-wind' : 'flame-dance'}
                   style={{
                     animationDelay: `${delay}s`,
                     position: 'relative',
@@ -1012,8 +990,7 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
                     height: 22 * fs,
                     borderRadius: '50% 50% 50% 50% / 68% 68% 32% 32%',
                     background:
-                      'radial-gradient(ellipse at 50% 78%, #ffffff 0%, #fff7cc 22%, #ffd060 46%, #ff8c1a 74%, rgba(255,70,0,0) 94%)',
-                    filter: 'drop-shadow(0 0 6px rgba(255,180,60,0.95))',
+                      'radial-gradient(ellipse at 50% 78%, #ffffff 0%, #fff7cc 24%, #ffd060 48%, #ff8c1a 74%, rgba(255,70,0,0) 94%)',
                   }}
                 >
                   {/* White-hot teardrop heart */}
@@ -1064,15 +1041,18 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
                   <path
                     d="M 12 54 C 7 44, 17 34, 11 23 C 6 14, 15 6, 10 0"
                     fill="none"
-                    stroke="rgba(240, 245, 255, 0.62)"
-                    strokeWidth="2.4"
+                    stroke="rgba(240, 245, 255, 0.48)"
+                    strokeWidth="2.8"
                     strokeLinecap="round"
-                    style={{ filter: 'blur(1.2px)' }}
                   />
                 </svg>
                 <div
-                  className="smoke-puff absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-white/45 blur-[2.5px]"
-                  style={{ width: 12 * fs, height: 16 * fs }}
+                  className="smoke-puff absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full"
+                  style={{
+                    width: 14 * fs,
+                    height: 18 * fs,
+                    background: 'radial-gradient(circle, rgba(255,255,255,0.42) 0%, transparent 72%)',
+                  }}
                 />
               </div>
             )}
@@ -1119,3 +1099,5 @@ export const RealisticCake: React.FC<RealisticCakeProps> = ({
     </div>
   );
 };
+
+export const RealisticCake = React.memo(RealisticCakeInner);

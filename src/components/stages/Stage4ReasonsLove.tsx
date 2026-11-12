@@ -120,27 +120,39 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const glintRef = useRef<HTMLDivElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const strokeCountRef = useRef(0);
+  const lastCheckMsRef = useRef(0);
   const revealedRef = useRef(isRevealed);
   const canvasSizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const [flakes, setFlakes] = useState<ScratchFlake[]>([]);
-  const [glintPos, setGlintPos] = useState<{ x: number; y: number } | null>(null);
   const [scratchPct, setScratchPct] = useState(0);
   const [hearts, setHearts] = useState<HeartPop[]>([]);
+
+  const updateGlint = useCallback((pt: { x: number; y: number } | null) => {
+    const el = glintRef.current;
+    if (!el) return;
+    if (!pt) {
+      el.style.opacity = '0';
+      return;
+    }
+    el.style.opacity = '1';
+    el.style.background = `radial-gradient(circle 150px at ${pt.x.toFixed(1)}px ${pt.y.toFixed(1)}px, rgba(255, 252, 240, 0.24), transparent 72%)`;
+  }, []);
 
   useEffect(() => {
     revealedRef.current = isRevealed;
     if (isRevealed) {
-      setGlintPos(null);
+      updateGlint(null);
       setScratchPct(100);
     } else {
       setScratchPct(0);
     }
-  }, [isRevealed, reason.id]);
+  }, [isRevealed, reason.id, updateGlint]);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -170,7 +182,7 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
       }
 
       canvasSizeRef.current = { w, h };
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
       canvas.width = w * dpr;
       canvas.height = h * dpr;
@@ -321,9 +333,13 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     }, 520);
   };
 
-  const checkProgress = () => {
+  const checkProgress = (force = false) => {
     const canvas = canvasRef.current;
     if (!canvas || revealedRef.current) return;
+    const now = performance.now();
+    if (!force && now - lastCheckMsRef.current < 180) return;
+    lastCheckMsRef.current = now;
+
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
@@ -331,7 +347,7 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     const data = ctx.getImageData(0, 0, width, height).data;
     let cleared = 0;
     let sampled = 0;
-    const step = 16 * 4;
+    const step = 24 * 4;
     for (let i = 3; i < data.length; i += step) {
       sampled++;
       if (data[i] < 40) cleared++;
@@ -341,7 +357,7 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     setScratchPct(Math.min(100, Math.round((pct / REVEAL_THRESHOLD_PCT) * 100)));
     if (pct >= REVEAL_THRESHOLD_PCT && !revealedRef.current) {
       revealedRef.current = true;
-      setGlintPos(null);
+      updateGlint(null);
       setScratchPct(100);
       triggerHaptic([14, 24, 14]);
       ambientAudio.playSparkleChime();
@@ -429,14 +445,14 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     isDrawingRef.current = true;
     const pt = getLocalPoint(e);
     lastPointRef.current = pt;
-    setGlintPos(pt);
+    updateGlint(pt);
     scratchAt(pt, null);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (revealedRef.current) return;
     const pt = getLocalPoint(e);
-    setGlintPos(pt);
+    updateGlint(pt);
     if (!isDrawingRef.current) return;
     scratchAt(pt, lastPointRef.current);
     lastPointRef.current = pt;
@@ -446,12 +462,12 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
     lastPointRef.current = null;
-    checkProgress();
+    checkProgress(true);
   };
 
   const handlePointerLeave = () => {
     if (!isDrawingRef.current) {
-      setGlintPos(null);
+      updateGlint(null);
     }
   };
 
@@ -528,13 +544,13 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
         {/* Whisper-minimal top-right status indicator + live scratch progress */}
         <div className="relative z-10 flex items-center justify-between px-3.5 pt-3.5">
           {!isRevealed && scratchPct > 0 ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#ffd166] backdrop-blur-md ring-1 ring-white/15">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#ffd166] ring-1 ring-white/15">
               {scratchPct}%
             </span>
           ) : (
             <span />
           )}
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 backdrop-blur-md ring-1 ring-white/15">
+          <span className="inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-white/90 ring-1 ring-white/15">
             {isRevealed ? (
               <>
                 <Check className="w-3 h-3 text-[#4ade80]" /> 0{index + 1} / 0{total}
@@ -603,16 +619,13 @@ const ScratchReasonCard: React.FC<ScratchReasonCardProps> = ({
               className="w-full h-full touch-none cursor-crosshair block"
             />
 
-            {/* Dynamic specular metallic sheen following finger/cursor */}
-            {glintPos && (
-              <div
-                aria-hidden
-                style={{
-                  background: `radial-gradient(circle 150px at ${glintPos.x}px ${glintPos.y}px, rgba(255, 252, 240, 0.34), transparent 72%)`,
-                }}
-                className="pointer-events-none absolute inset-0 mix-blend-overlay"
-              />
-            )}
+            {/* Dynamic specular metallic sheen following finger/cursor (zero React re-renders) */}
+            <div
+              ref={glintRef}
+              aria-hidden
+              style={{ opacity: 0 }}
+              className="pointer-events-none absolute inset-0 transition-opacity duration-150"
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -725,10 +738,10 @@ export const Stage4ReasonsLove: React.FC<Stage4ReasonsLoveProps> = ({ onNext }) 
           key={`halo-${current.id}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1.1, ease: 'easeOut' }}
+          transition={{ duration: 1.0, ease: 'easeOut' }}
           aria-hidden
           style={{ background: REASON_HALO_COLORS[index % REASON_HALO_COLORS.length] }}
-          className="pointer-events-none absolute -inset-16 -z-10 blur-3xl"
+          className="pointer-events-none absolute -inset-24 -z-10"
         />
 
         {/* Subtle smoked glass stack edges behind card */}

@@ -19,7 +19,6 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
     Array.from({ length: TOTAL_CANDLES }, () => true)
   );
   const [micStatus, setMicStatus] = useState<'idle' | 'active' | 'denied'>('idle');
-  const [blowLevel, setBlowLevel] = useState(0);
   const [isBlowing, setIsBlowing] = useState(false);
   const [celebrated, setCelebrated] = useState(false);
 
@@ -28,7 +27,9 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
   const rafRef = useRef<number | null>(null);
   const blowProgressRef = useRef(0);
   const blowIntensityRef = useRef(0);
+  const isBlowingRef = useRef(false);
   const cakeRef = useRef<HTMLDivElement | null>(null);
+  const meterBarRef = useRef<HTMLDivElement | null>(null);
   const swipeBlowRef = useRef<{ active: boolean; lastX: number; lastY: number; acc: number }>({
     active: false,
     lastX: 0,
@@ -39,6 +40,27 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
 
   const litCount = candlesLit.filter(Boolean).length;
   const allOut = litCount === 0;
+
+  const applyBlowVisuals = useCallback((scaled: number, blowingNow: boolean) => {
+    blowIntensityRef.current = scaled;
+
+    if (meterBarRef.current) {
+      meterBarRef.current.style.transform = `scaleX(${scaled.toFixed(3)})`;
+    }
+
+    const cakeEl = cakeRef.current;
+    if (cakeEl) {
+      const effective = blowingNow ? Math.max(0.28, scaled) : scaled;
+      cakeEl.style.setProperty('--flame-skew', `${(-effective * 34).toFixed(1)}deg`);
+      cakeEl.style.setProperty('--flame-sx', (1 + effective * 0.24).toFixed(2));
+      cakeEl.style.setProperty('--flame-sy', Math.max(0.46, 1 - effective * 0.44).toFixed(2));
+    }
+
+    if (blowingNow !== isBlowingRef.current) {
+      isBlowingRef.current = blowingNow;
+      setIsBlowing(blowingNow);
+    }
+  }, []);
 
   const stopMic = useCallback(() => {
     if (rafRef.current !== null) {
@@ -89,16 +111,14 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
     let cleanup: (() => void) | undefined;
     if (allOut && !celebrated) {
       setCelebrated(true);
-      setIsBlowing(false);
-      setBlowLevel(0);
-      blowIntensityRef.current = 0;
+      applyBlowVisuals(0, false);
       stopMic();
       ambientAudio.playWishGranted();
       triggerHaptic([20, 40, 20, 50]);
       cleanup = fireFireworks(4500);
     }
     return () => cleanup?.();
-  }, [allOut, celebrated, stopMic]);
+  }, [allOut, celebrated, stopMic, applyBlowVisuals]);
 
   useEffect(() => {
     return () => {
@@ -138,27 +158,28 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
       const timeData = new Uint8Array(analyser.fftSize);
       setMicStatus('active');
 
-      const tick = () => {
-        analyser.getByteTimeDomainData(timeData);
-        let sumSq = 0;
-        for (let i = 0; i < timeData.length; i++) {
-          const normalized = (timeData[i] - 128) / 128;
-          sumSq += normalized * normalized;
-        }
-        const rms = Math.sqrt(sumSq / timeData.length);
-        const scaled = Math.min(1, Math.max(0, (rms - 0.014) * 5.8));
+      let lastSample = 0;
+      const tick = (now: number) => {
+        if (now - lastSample >= 32) {
+          lastSample = now;
+          analyser.getByteTimeDomainData(timeData);
+          let sumSq = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            const normalized = (timeData[i] - 128) / 128;
+            sumSq += normalized * normalized;
+          }
+          const rms = Math.sqrt(sumSq / timeData.length);
+          const scaled = Math.min(1, Math.max(0, (rms - 0.014) * 5.8));
+          const blowingNow = scaled > 0.17;
 
-        blowIntensityRef.current = scaled;
-        setBlowLevel(scaled);
+          applyBlowVisuals(scaled, blowingNow);
 
-        const blowingNow = scaled > 0.17;
-        setIsBlowing(blowingNow);
-
-        if (blowingNow) {
-          blowProgressRef.current += scaled * 0.45;
-          if (blowProgressRef.current >= 1) {
-            extinguishBatch(scaled > 0.55 ? 3 : 2);
-            blowProgressRef.current = 0;
+          if (blowingNow) {
+            blowProgressRef.current += scaled * 0.85;
+            if (blowProgressRef.current >= 1) {
+              extinguishBatch(scaled > 0.55 ? 3 : 2);
+              blowProgressRef.current = 0;
+            }
           }
         }
         rafRef.current = requestAnimationFrame(tick);
@@ -187,16 +208,12 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
     swipeBlowRef.current.acc += dist;
 
     const strength = Math.min(1, Math.max(0.32, dist / 24));
-    blowIntensityRef.current = strength;
-    setBlowLevel(strength);
-    setIsBlowing(true);
+    applyBlowVisuals(strength, true);
 
     if (swipeDecayTimerRef.current) window.clearTimeout(swipeDecayTimerRef.current);
     swipeDecayTimerRef.current = window.setTimeout(() => {
       if (micStatus !== 'active') {
-        blowIntensityRef.current = 0;
-        setBlowLevel(0);
-        setIsBlowing(false);
+        applyBlowVisuals(0, false);
       }
     }, 180);
 
@@ -218,11 +235,12 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
       transition={{ duration: 0.5 }}
       className="relative w-full flex flex-col items-center text-center"
     >
-      {/* Full-screen volumetric airflow mist */}
+      {/* Full-screen volumetric airflow mist (sleeps when idle) */}
       <AirflowEffect
         blowIntensityRef={blowIntensityRef}
         targetRef={cakeRef}
         hasLitCandles={!allOut}
+        isActive={isBlowing}
       />
 
       {/* Shooting Wish Star when all 21 candles go out */}
@@ -258,7 +276,6 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
       >
         <RealisticCake
           candlesLit={candlesLit}
-          blowLevel={blowLevel}
           isBlowing={isBlowing}
           allOut={allOut}
           onExtinguishCandle={extinguishSingle}
@@ -283,10 +300,10 @@ export const Stage7BlowCandles: React.FC<Stage7BlowCandlesProps> = ({ onNext }) 
                   </span>
                 </div>
                 <div className="h-2 rounded-full bg-white/15 overflow-hidden">
-                  <motion.div
-                    animate={{ width: `${Math.round(blowLevel * 100)}%` }}
-                    transition={{ duration: 0.08 }}
-                    className="h-full rounded-full bg-gradient-to-r from-[#ffd166] via-[#ff9f1c] to-[#ff4f8b]"
+                  <div
+                    ref={meterBarRef}
+                    style={{ transform: 'scaleX(0)', transformOrigin: 'left center' }}
+                    className="h-full w-full rounded-full bg-gradient-to-r from-[#ffd166] via-[#ff9f1c] to-[#ff4f8b] transition-transform duration-75 ease-out"
                   />
                 </div>
               </div>

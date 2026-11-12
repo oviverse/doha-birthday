@@ -121,7 +121,7 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1080 } },
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } },
         audio: false,
       });
     } catch {
@@ -433,11 +433,11 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
 
                   {/* Camera HUD */}
                   {cameraState === 'ready' && countdown === null && (
-                    <div className="pointer-events-none absolute top-3 left-3 right-3 flex items-center justify-between font-mono text-[8px] font-semibold text-white/75">
-                      <span className="rounded bg-black/45 px-1.5 py-0.5 backdrop-blur-xs">
+                    <div className="pointer-events-none absolute top-3 left-3 right-3 flex items-center justify-between font-mono text-[8px] font-semibold text-white/80">
+                      <span className="rounded bg-black/65 px-1.5 py-0.5">
                         ● LIVE
                       </span>
-                      <span className="rounded bg-black/45 px-1.5 py-0.5 backdrop-blur-xs">
+                      <span className="rounded bg-black/65 px-1.5 py-0.5">
                         {activeFilterObj.label.toUpperCase()}
                       </span>
                     </div>
@@ -494,7 +494,7 @@ export const Stage5PhotoBooth: React.FC<Stage5PhotoBoothProps> = ({ onNext }) =>
                         transition={{ duration: 0.22 }}
                         className="absolute inset-0 flex items-center justify-center bg-black/30"
                       >
-                        <div className="w-20 h-20 rounded-full border-2 border-[#ffd166]/80 flex items-center justify-center bg-black/35 backdrop-blur-[2px]">
+                        <div className="w-20 h-20 rounded-full border-2 border-[#ffd166]/80 flex items-center justify-center bg-black/55">
                           <span className="font-display text-5xl font-extrabold text-[#ffd166]">
                             {countdown}
                           </span>

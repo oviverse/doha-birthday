@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { fireCelebrationConfetti, fireSparkleBurst } from '../../utils/confetti';
 import { ambientAudio } from '../../utils/ambientAudio';
 import { triggerHaptic } from '../../utils/haptics';
-import { Kicker, PrimaryButton, RevealText, SparkleIcon } from '../ui/Primitives';
+import { PrimaryButton, RevealText, SparkleIcon } from '../ui/Primitives';
 import { RealisticCake } from '../cake/RealisticCake';
 
 interface Stage1WelcomeProps {
@@ -66,8 +66,6 @@ export const Stage1Welcome: React.FC<Stage1WelcomeProps> = ({ onNext }) => {
         21
       </motion.span>
 
-      <Kicker className="text-[#ffd166] mb-1">Nov 13 · A Digital Birthday Gift</Kicker>
-
       <h1 className="font-display text-[32px] sm:text-5xl font-extrabold tracking-tight leading-[1.02] text-white max-w-md">
         <RevealText text="Happy 21st Birthday," delay={0.1} />
         <span className="block font-serif italic font-normal text-[40px] sm:text-6xl shimmer-text mt-0.5">
@@ -123,7 +121,7 @@ export const Stage1Welcome: React.FC<Stage1WelcomeProps> = ({ onNext }) => {
         className="glass w-full max-w-md rounded-3xl px-4 py-3 mb-3"
       >
         <p className="text-[12.5px] sm:text-[15px] leading-snug sm:leading-relaxed text-white/92">
-          Even from miles away, I built this interactive birthday journey just for you — tap, scratch, spin, snap, and blow out your 21 candles.
+          I love you more than words, Doha. Since I can’t be right there holding you today, I put this little surprise together from my heart just to see you smile on your 21st.
         </p>
         <p className="mt-1 font-hand text-[21px] text-[#ffd166]">
           Created with all my love, Abhi Vaidya ❤️

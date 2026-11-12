@@ -42,12 +42,20 @@ const FLOATING_HEARTS = [
 
 const BURST_COLORS = ['#ffd6e0', '#ffd166', '#ff8fab', '#ffffff'];
 
-const AmbientDustCanvas: React.FC<{ accent: string }> = ({ accent }) => {
+const AmbientDustCanvas: React.FC<{ accent: string; paused?: boolean }> = ({
+  accent,
+  paused = false,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const accentRef = useRef(accent);
   accentRef.current = accent;
 
   useEffect(() => {
+    if (paused) return;
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -55,39 +63,49 @@ const AmbientDustCanvas: React.FC<{ accent: string }> = ({ accent }) => {
 
     let width = window.innerWidth;
     let height = window.innerHeight;
-    let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
     const resize = () => {
       width = window.innerWidth;
       height = window.innerHeight;
-      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      canvas.width = width;
+      canvas.height = height;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
     };
     resize();
     window.addEventListener('resize', resize);
 
-    const motes = Array.from({ length: 26 }, (_, i) => ({
+    const motes = Array.from({ length: 18 }, (_, i) => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      r: 0.9 + (i % 3) * 0.75,
+      r: 0.9 + (i % 3) * 0.7,
       vx: (Math.random() - 0.5) * 10,
       vy: -(6 + Math.random() * 14),
       phase: Math.random() * Math.PI * 2,
-      alpha: 0.16 + Math.random() * 0.35,
+      alpha: 0.18 + Math.random() * 0.34,
     }));
 
-    let last = performance.now();
+    let lastDraw = performance.now();
     let rafId = 0;
+    const FRAME_MS = 1000 / 24;
 
     const tick = (now: number) => {
-      const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
-      last = now;
+      if (document.hidden) {
+        rafId = 0;
+        return;
+      }
 
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const elapsed = now - lastDraw;
+      if (elapsed < FRAME_MS) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+
+      const dt = Math.min(0.08, Math.max(0.001, elapsed / 1000));
+      lastDraw = now;
+
       ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = accentRef.current;
 
       for (const m of motes) {
         m.x += (m.vx + Math.sin(now * 0.0012 + m.phase) * 6) * dt;
@@ -102,7 +120,6 @@ const AmbientDustCanvas: React.FC<{ accent: string }> = ({ accent }) => {
 
         const twinkle = 0.55 + 0.45 * Math.sin(now * 0.002 + m.phase);
         ctx.globalAlpha = m.alpha * twinkle;
-        ctx.fillStyle = accentRef.current;
         ctx.beginPath();
         ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
         ctx.fill();
@@ -111,13 +128,24 @@ const AmbientDustCanvas: React.FC<{ accent: string }> = ({ accent }) => {
       rafId = requestAnimationFrame(tick);
     };
 
+    const handleVisibility = () => {
+      if (!document.hidden && rafId === 0) {
+        lastDraw = performance.now();
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
     rafId = requestAnimationFrame(tick);
     return () => {
-      cancelAnimationFrame(rafId);
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      ctx.clearRect(0, 0, width, height);
     };
-  }, []);
+  }, [paused]);
 
+  if (paused) return null;
   return <canvas ref={canvasRef} aria-hidden className="pointer-events-none fixed inset-0 z-[5]" />;
 };
 
@@ -208,39 +236,32 @@ export const StoryShell: React.FC<StoryShellProps> = ({
       {/* Editorial film-grain texture */}
       <div className="pointer-events-none fixed inset-0 z-10 grain-overlay" />
 
-      {/* Drifting stardust canvas */}
-      <AmbientDustCanvas accent={theme.blobs[0]} />
+      {/* Drifting stardust canvas (automatically pauses in focusMode) */}
+      <AmbientDustCanvas accent={theme.blobs[0]} paused={focusMode} />
 
-      {/* Animated Wrapped-style ambient blobs & decorations */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <motion.div
-          animate={{
-            x: [0, 42, -25, 0],
-            y: [0, -35, 22, 0],
-            scale: [1, 1.18, 0.94, 1],
+      {/* Animated Wrapped-style ambient blobs & decorations (pure GPU CSS, paused in focusMode) */}
+      <div
+        className={`pointer-events-none fixed inset-0 overflow-hidden ${
+          focusMode ? 'pause-ambient' : ''
+        }`}
+      >
+        <div
+          style={{
+            background: `radial-gradient(circle, ${theme.blobs[0]}59 0%, ${theme.blobs[0]}1a 42%, transparent 72%)`,
           }}
-          transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ backgroundColor: theme.blobs[0] }}
-          className="absolute -top-28 -left-24 h-80 w-80 rounded-full opacity-35 blur-3xl transition-colors duration-1000"
+          className="ambient-blob-1 absolute -top-36 -left-32 h-[26rem] w-[26rem] rounded-full transition-colors duration-1000"
         />
-        <motion.div
-          animate={{
-            x: [0, -35, 28, 0],
-            y: [0, 38, -28, 0],
-            scale: [1, 0.9, 1.15, 1],
+        <div
+          style={{
+            background: `radial-gradient(circle, ${theme.blobs[1]}4d 0%, ${theme.blobs[1]}14 45%, transparent 72%)`,
           }}
-          transition={{ duration: 17, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ backgroundColor: theme.blobs[1] }}
-          className="absolute -bottom-28 -right-24 h-96 w-96 rounded-full opacity-30 blur-3xl transition-colors duration-1000"
+          className="ambient-blob-2 absolute -bottom-36 -right-32 h-[30rem] w-[30rem] rounded-full transition-colors duration-1000"
         />
-        <motion.div
-          animate={{
-            x: [0, 25, -20, 0],
-            y: [0, 20, -25, 0],
+        <div
+          style={{
+            background: `radial-gradient(circle, ${theme.blobs[2]}38 0%, ${theme.blobs[2]}0f 45%, transparent 72%)`,
           }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ backgroundColor: theme.blobs[2] }}
-          className="absolute top-1/3 right-1/4 h-64 w-64 rounded-full opacity-20 blur-3xl transition-colors duration-1000"
+          className="ambient-blob-3 absolute top-1/3 right-1/4 h-80 w-80 rounded-full transition-colors duration-1000"
         />
 
         {/* Twinkling starfield on candle/finale stages */}
@@ -260,38 +281,26 @@ export const StoryShell: React.FC<StoryShellProps> = ({
           ))}
 
         {/* Orbiting Wrapped rings */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 55, repeat: Infinity, ease: 'linear' }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[118vw] w-[118vw] max-h-[780px] max-w-[780px] rounded-full border border-white/[0.06]"
-        />
-        <motion.div
-          animate={{ rotate: -360 }}
-          transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[88vw] w-[88vw] max-h-[560px] max-w-[560px] rounded-full border border-dashed border-white/[0.05]"
-        />
+        <div className="ambient-orbit-cw absolute top-1/2 left-1/2 h-[118vw] w-[118vw] max-h-[780px] max-w-[780px] rounded-full border border-white/[0.06]" />
+        <div className="ambient-orbit-ccw absolute top-1/2 left-1/2 h-[88vw] w-[88vw] max-h-[560px] max-w-[560px] rounded-full border border-dashed border-white/[0.05]" />
 
         {/* Floating hearts */}
         {FLOATING_HEARTS.map((heart, idx) => (
-          <motion.span
+          <span
             key={idx}
-            initial={{ y: '105dvh', opacity: 0 }}
-            animate={{
-              y: ['105dvh', '-12dvh'],
-              opacity: [0, 0.32, 0.32, 0],
-              x: [0, idx % 2 === 0 ? 18 : -18, 0],
-            }}
-            transition={{
-              duration: heart.duration,
-              delay: heart.delay,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-            style={{ left: heart.left, fontSize: heart.size }}
-            className="absolute select-none text-white/35"
+            style={
+              {
+                left: heart.left,
+                fontSize: heart.size,
+                '--heart-dur': `${heart.duration}s`,
+                '--heart-delay': `${heart.delay}s`,
+                '--heart-drift': `${idx % 2 === 0 ? 18 : -18}px`,
+              } as React.CSSProperties
+            }
+            className="ambient-heart absolute top-0 select-none text-white/35"
           >
             ♥
-          </motion.span>
+          </span>
         ))}
 
         {/* Multi-particle touch bursts */}
@@ -325,7 +334,7 @@ export const StoryShell: React.FC<StoryShellProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* Cinema focus backdrop: blurs & dims the entire website behind focal stages */}
+      {/* Cinema focus backdrop: dims the background cleanly without costly full-screen blur */}
       <AnimatePresence>
         {focusMode && (
           <motion.div
@@ -333,8 +342,12 @@ export const StoryShell: React.FC<StoryShellProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.85, ease: 'easeInOut' }}
-            className="pointer-events-none fixed inset-0 z-[15] bg-[#07020b]/78 backdrop-blur-3xl"
+            transition={{ duration: 0.65, ease: 'easeInOut' }}
+            style={{
+              background:
+                'radial-gradient(circle at 50% 45%, rgba(16, 6, 24, 0.84) 0%, rgba(7, 2, 11, 0.94) 75%)',
+            }}
+            className="pointer-events-none fixed inset-0 z-[15]"
           />
         )}
       </AnimatePresence>
@@ -469,7 +482,7 @@ export const StoryShell: React.FC<StoryShellProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setChapterMapOpen(false)}
-            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.92, opacity: 0, y: 16 }}

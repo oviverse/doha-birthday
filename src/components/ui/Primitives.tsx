@@ -178,7 +178,6 @@ export const Flame: React.FC<{ size?: number; windy?: boolean; delay?: number }>
         borderRadius: '50% 50% 50% 50% / 62% 62% 38% 38%',
         background:
           'radial-gradient(ellipse at 50% 80%, #ffffff 0%, #fff6c2 20%, #ffd166 42%, #ff9f1c 66%, rgba(255,90,0,0) 82%)',
-        filter: 'drop-shadow(0 0 6px rgba(255,180,60,0.95))',
       }}
     >
       <div

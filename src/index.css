@@ -31,16 +31,15 @@
 
 /* ---------- Texture & surfaces ---------- */
 .grain-overlay {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.9'/></svg>");
-  opacity: 0.13;
-  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='1' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.5'/></svg>");
+  opacity: 0.055;
 }
 
 .glass {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
@@ -53,9 +52,8 @@
 }
 
 .paper-grain {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23p)' opacity='0.55'/></svg>");
-  opacity: 0.08;
-  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='1' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23p)' opacity='0.4'/></svg>");
+  opacity: 0.05;
 }
 
 .text-outline {
@@ -69,7 +67,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: shimmer 6s linear infinite;
+  animation: shimmer 8s linear infinite;
 }
 
 .gold-text {
@@ -81,13 +79,14 @@
 
 .neon-pink {
   color: #ffe1ec;
-  text-shadow: 0 0 4px #fff, 0 0 12px #ff4f8b, 0 0 28px #ff4f8b, 0 0 52px #ff1f6d;
-  animation: neon-flicker 4s infinite;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.85), 0 0 18px #ff4f8b, 0 0 36px rgba(255, 31, 109, 0.75);
+  animation: neon-flicker 5s infinite;
+  will-change: opacity;
 }
 
 .neon-gold {
   color: #fff6d6;
-  text-shadow: 0 0 4px #fff, 0 0 12px #ffcc4d, 0 0 28px #ffb000, 0 0 52px #ff8a00;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.85), 0 0 18px #ffcc4d, 0 0 36px rgba(255, 138, 0, 0.75);
 }
 
 .btn-shine {
@@ -98,13 +97,14 @@
   content: '';
   position: absolute;
   top: 0;
-  left: -70%;
+  left: 0;
   width: 45%;
   height: 100%;
-  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-  transform: skewX(-20deg);
-  animation: sweep 3.2s ease-in-out infinite;
+  background: linear-gradient(110deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: translate3d(-180%, 0, 0) skewX(-20deg);
+  animation: sweep 3.6s ease-in-out infinite;
   pointer-events: none;
+  will-change: transform;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -154,14 +154,62 @@
 }
 
 .bulb {
-  animation: bulb 1.2s ease-in-out infinite;
+  box-shadow: 0 0 8px 2px rgba(255, 224, 138, 0.75);
+  animation: bulb 1.4s ease-in-out infinite;
+  will-change: opacity, transform;
 }
 .bulb-fast {
-  animation: bulb 0.36s ease-in-out infinite;
+  box-shadow: 0 0 10px 2px rgba(255, 224, 138, 0.9);
+  animation: bulb 0.42s ease-in-out infinite;
+  will-change: opacity, transform;
 }
 
 .twinkle {
-  animation: twinkle 3s ease-in-out infinite;
+  animation: twinkle 3.6s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* ---------- Ambient Shell Pure-CSS Animations ---------- */
+.ambient-blob-1 {
+  animation: blob-drift-1 22s ease-in-out infinite;
+  will-change: transform;
+}
+.ambient-blob-2 {
+  animation: blob-drift-2 26s ease-in-out infinite;
+  will-change: transform;
+}
+.ambient-blob-3 {
+  animation: blob-drift-3 30s ease-in-out infinite;
+  will-change: transform;
+}
+.ambient-orbit-cw {
+  animation: orbit-cw 65s linear infinite;
+  will-change: transform;
+}
+.ambient-orbit-ccw {
+  animation: orbit-ccw 48s linear infinite;
+  will-change: transform;
+}
+.ambient-heart {
+  animation: float-heart var(--heart-dur, 14s) linear var(--heart-delay, 0s) infinite;
+  will-change: transform, opacity;
+}
+.soft-bob {
+  animation: soft-bob 3.4s ease-in-out infinite;
+}
+.keepsake-sway {
+  animation: keepsake-sway 7s ease-in-out infinite;
+  transform-origin: 50% 10px;
+}
+
+.pause-ambient .ambient-blob-1,
+.pause-ambient .ambient-blob-2,
+.pause-ambient .ambient-blob-3,
+.pause-ambient .ambient-orbit-cw,
+.pause-ambient .ambient-orbit-ccw,
+.pause-ambient .ambient-heart,
+.pause-ambient .twinkle {
+  animation-play-state: paused !important;
 }
 
 /* ---------- Keyframes ---------- */
@@ -172,10 +220,10 @@
 }
 @keyframes sweep {
   0%, 55% {
-    left: -70%;
+    transform: translate3d(-180%, 0, 0) skewX(-20deg);
   }
   100% {
-    left: 130%;
+    transform: translate3d(340%, 0, 0) skewX(-20deg);
   }
 }
 @keyframes marquee {
@@ -218,20 +266,20 @@
 @keyframes bulb {
   0%, 100% {
     opacity: 0.35;
-    box-shadow: none;
+    transform: translate(-50%, -50%) scale(0.9);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 10px 3px rgba(255, 224, 138, 0.9);
+    transform: translate(-50%, -50%) scale(1.12);
   }
 }
 @keyframes twinkle {
   0%, 100% {
-    opacity: 0.15;
-    transform: scale(0.7);
+    opacity: 0.2;
+    transform: scale(0.75);
   }
   50% {
-    opacity: 1;
+    opacity: 0.95;
     transform: scale(1);
   }
 }
@@ -320,4 +368,58 @@
 
 .shooting-star {
   animation: shooting-star 1.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes blob-drift-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(38px, -30px, 0) scale(1.12); }
+  66% { transform: translate3d(-22px, 20px, 0) scale(0.95); }
+}
+@keyframes blob-drift-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(-32px, 34px, 0) scale(0.92); }
+  66% { transform: translate3d(26px, -24px, 0) scale(1.1); }
+}
+@keyframes blob-drift-3 {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(22px, -22px, 0); }
+}
+@keyframes orbit-cw {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes orbit-ccw {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+@keyframes float-heart {
+  0% { transform: translate3d(0, 105dvh, 0); opacity: 0; }
+  12% { opacity: 0.3; }
+  50% { transform: translate3d(var(--heart-drift, 14px), 46dvh, 0); opacity: 0.3; }
+  88% { opacity: 0.3; }
+  100% { transform: translate3d(0, -12dvh, 0); opacity: 0; }
+}
+@keyframes soft-bob {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -4px, 0); }
+}
+@keyframes keepsake-sway {
+  0%, 100% { transform: rotate(-2.2deg); }
+  50% { transform: rotate(-1.1deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob-1,
+  .ambient-blob-2,
+  .ambient-blob-3,
+  .ambient-orbit-cw,
+  .ambient-orbit-ccw,
+  .ambient-heart,
+  .twinkle,
+  .shimmer-text,
+  .btn-shine::after,
+  .soft-bob,
+  .keepsake-sway {
+    animation: none !important;
+  }
 }

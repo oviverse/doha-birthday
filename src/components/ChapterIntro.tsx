@@ -30,8 +30,6 @@ export const ChapterIntro: React.FC<ChapterIntroProps> = ({ stageIndex, onDone }
       style={{ background: theme.introBg, color: theme.introText }}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center select-none overflow-hidden"
     >
-      <div className="pointer-events-none fixed inset-0 grain-overlay" />
-
       {/* Expanding halo ring */}
       <motion.div
         initial={{ scale: 0.35, opacity: 0.35 }}

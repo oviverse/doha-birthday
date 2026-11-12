@@ -97,7 +97,6 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
-  const [progress, setProgress] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [needsSoundTap, setNeedsSoundTap] = useState(false);
@@ -105,16 +104,25 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
   const [hearts, setHearts] = useState<HeartBurst[]>([]);
 
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const progressBarRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const progressRef = useRef(0);
   const isPausedRef = useRef(false);
   const holdTimerRef = useRef<number | null>(null);
   const heldLongRef = useRef(false);
   const lastTapRef = useRef(0);
 
-  progressRef.current = progress;
   isPausedRef.current = isPaused;
 
   const activeMemory = CHILDHOOD_MEMORIES[activeIndex];
+
+  const syncProgressBars = useCallback((currIdx: number, activeRatio: number, completed: boolean) => {
+    CHILDHOOD_MEMORIES.forEach((item, idx) => {
+      const bar = progressBarRefs.current[item.id];
+      if (!bar) return;
+      const fill = completed || idx < currIdx ? 1 : idx === currIdx ? activeRatio : 0;
+      bar.style.transform = `scaleX(${fill})`;
+    });
+  }, []);
 
   useEffect(() => {
     CHILDHOOD_MEMORIES.forEach((item) => {
@@ -153,40 +161,44 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     return () => window.clearTimeout(timer);
   }, [prevIndex]);
 
-  const jumpToMemory = useCallback((targetIdx: number) => {
-    ambientAudio.setTempPaused(false);
-    setNeedsSoundTap(false);
-    setIsCompleted(false);
-    setActiveIndex((curr) => {
-      const clamped = Math.max(0, Math.min(CHILDHOOD_MEMORIES.length - 1, targetIdx));
-      if (clamped !== curr) {
-        setPrevIndex(curr);
-      }
-      setProgress(0);
+  const jumpToMemory = useCallback(
+    (targetIdx: number) => {
+      ambientAudio.setTempPaused(false);
+      setNeedsSoundTap(false);
+      setIsCompleted(false);
       progressRef.current = 0;
-      return clamped;
-    });
-    setRunId((r) => r + 1);
-  }, []);
+      setActiveIndex((curr) => {
+        const clamped = Math.max(0, Math.min(CHILDHOOD_MEMORIES.length - 1, targetIdx));
+        if (clamped !== curr) {
+          setPrevIndex(curr);
+        }
+        syncProgressBars(clamped, 0, false);
+        return clamped;
+      });
+      setRunId((r) => r + 1);
+    },
+    [syncProgressBars]
+  );
 
   const advanceSequence = useCallback(() => {
     ambientAudio.setTempPaused(false);
     setNeedsSoundTap(false);
     setActiveIndex((current) => {
       if (current < CHILDHOOD_MEMORIES.length - 1) {
+        const nextIdx = current + 1;
         setPrevIndex(current);
-        setProgress(0);
         progressRef.current = 0;
-        return current + 1;
+        syncProgressBars(nextIdx, 0, false);
+        return nextIdx;
       }
-      setProgress(1);
       progressRef.current = 1;
+      syncProgressBars(current, 1, true);
       setIsCompleted(true);
       ambientAudio.playSparkleChime();
       fireSparkleBurst();
       return current;
     });
-  }, []);
+  }, [syncProgressBars]);
 
   // Pause/resume active video when hold-pausing
   useEffect(() => {
@@ -200,7 +212,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     }
   }, [isPaused, activeMemory, isIntroActive, isCompleted]);
 
-  // Sequence playback controller for the active image or video
+  // Sequence playback controller for the active image or video (zero React re-renders per frame)
   useEffect(() => {
     if (isIntroActive || isCompleted) return;
 
@@ -212,16 +224,22 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
       setNeedsSoundTap(false);
       let elapsedMs = progressRef.current * IMAGE_DURATION_MS;
       let lastTick = performance.now();
+      let lastBarDraw = 0;
 
       const tickImage = (now: number) => {
         if (cancelled) return;
-        const dt = now - lastTick;
+        const dt = Math.min(0.1 * 1000, now - lastTick);
         lastTick = now;
-        if (!isPausedRef.current) {
+        if (!isPausedRef.current && !document.hidden) {
           elapsedMs += dt;
         }
         const ratio = Math.min(1, elapsedMs / IMAGE_DURATION_MS);
-        setProgress(ratio);
+        progressRef.current = ratio;
+        if (now - lastBarDraw >= 33 || ratio >= 1) {
+          lastBarDraw = now;
+          const bar = progressBarRefs.current[activeMemory.id];
+          if (bar) bar.style.transform = `scaleX(${ratio.toFixed(4)})`;
+        }
         if (ratio >= 1) {
           advanceSequence();
           return;
@@ -268,10 +286,17 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
       }
     };
 
-    const tickVideo = () => {
+    let lastBarDraw = 0;
+    const tickVideo = (now: number) => {
       if (cancelled) return;
-      if (videoEl.duration > 0 && Number.isFinite(videoEl.duration)) {
-        setProgress(Math.min(1, videoEl.currentTime / videoEl.duration));
+      if (!document.hidden && now - lastBarDraw >= 33) {
+        lastBarDraw = now;
+        if (videoEl.duration > 0 && Number.isFinite(videoEl.duration)) {
+          const ratio = Math.min(1, videoEl.currentTime / videoEl.duration);
+          progressRef.current = ratio;
+          const bar = progressBarRefs.current[activeMemory.id];
+          if (bar) bar.style.transform = `scaleX(${ratio.toFixed(4)})`;
+        }
       }
       rafId = requestAnimationFrame(tickVideo);
     };
@@ -320,8 +345,8 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
     });
     setPrevIndex(null);
     setActiveIndex(0);
-    setProgress(0);
     progressRef.current = 0;
+    syncProgressBars(0, 0, false);
     setIsCompleted(false);
     setIsPaused(false);
     setNeedsSoundTap(false);
@@ -413,10 +438,10 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
           key={activeMemory.id}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1.4, ease: 'easeOut' }}
+          transition={{ duration: 1.2, ease: 'easeOut' }}
           aria-hidden
           style={{ background: activeMemory.ambientTint }}
-          className="pointer-events-none absolute -inset-16 -z-10 blur-3xl"
+          className="pointer-events-none absolute -inset-24 -z-10"
         />
 
         {/* Pure, unobstructed 9:16 portrait frame */}
@@ -434,10 +459,14 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
           style={{ height: 'min(52dvh, 490px, calc(82vw * 16 / 9))' }}
           className="relative aspect-[9/16] rounded-[26px] overflow-hidden bg-[#0a040c] ring-1 ring-white/20 shadow-[0_36px_95px_-12px_rgba(0,0,0,0.95)] select-none cursor-pointer"
         >
-          {/* GPU-composited optical cross-dissolve stack */}
+          {/* GPU-composited optical cross-dissolve stack (only active, prev, and next-up mounted) */}
           {CHILDHOOD_MEMORIES.map((item, idx) => {
             const isActive = idx === activeIndex && !isIntroActive;
             const isPrevious = idx === prevIndex && !isIntroActive;
+            const isNext = idx === activeIndex + 1;
+            const shouldMount = idx === activeIndex || idx === prevIndex || isNext;
+            if (!shouldMount) return null;
+
             const isVisibleLayer = isActive || isPrevious;
             const zIndex = isActive ? 2 : isPrevious ? 1 : 0;
 
@@ -455,7 +484,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                   ease: CROSSFADE_EASE,
                 }}
                 style={{ zIndex }}
-                className="pointer-events-none absolute inset-0 overflow-hidden will-change-[opacity,transform]"
+                className="pointer-events-none absolute inset-0 overflow-hidden"
               >
                 {item.type === 'image' ? (
                   <motion.img
@@ -495,7 +524,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                     }}
                     src={item.src}
                     playsInline
-                    preload="auto"
+                    preload={idx === activeIndex ? 'auto' : 'metadata'}
                     disablePictureInPicture
                     controlsList="nodownload noplaybackrate"
                     className="w-full h-full object-cover"
@@ -536,7 +565,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="pointer-events-none absolute top-3.5 left-3.5 z-20 inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90 backdrop-blur-md"
+                className="pointer-events-none absolute top-3.5 left-3.5 z-20 inline-flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white/90"
               >
                 <Pause className="w-2.5 h-2.5" /> Paused
               </motion.div>
@@ -555,7 +584,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                   e.stopPropagation();
                   handleUnmuteVideoTap();
                 }}
-                className="absolute top-3.5 right-3.5 z-20 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[11px] font-semibold text-[#ffd166] ring-1 ring-white/20 backdrop-blur-md cursor-pointer"
+                className="absolute top-3.5 right-3.5 z-20 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold text-[#ffd166] ring-1 ring-white/20 cursor-pointer"
               >
                 <Volume2 className="w-3.5 h-3.5" />
                 <span>Tap for sound</span>
@@ -571,12 +600,7 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
             className="grid gap-1.5"
           >
             {CHILDHOOD_MEMORIES.map((item, idx) => {
-              const fill =
-                isCompleted || idx < activeIndex
-                  ? 1
-                  : idx === activeIndex
-                    ? progress
-                    : 0;
+              const initialFill = isCompleted || idx < activeIndex ? 1 : 0;
 
               return (
                 <button
@@ -587,8 +611,11 @@ export const StageChildhoodMemories: React.FC<StageChildhoodMemoriesProps> = ({
                   className="h-[3px] rounded-full bg-white/15 overflow-hidden cursor-pointer"
                 >
                   <div
+                    ref={(el) => {
+                      progressBarRefs.current[item.id] = el;
+                    }}
                     style={{
-                      transform: `scaleX(${fill})`,
+                      transform: `scaleX(${initialFill})`,
                       transformOrigin: 'left center',
                     }}
                     className={`h-full w-full rounded-full ${
