@@ -152,7 +152,7 @@ export const LOVE_LETTER_PARAGRAPHS = [
   'My Dearest Doha,',
   'Happy 21st Birthday, my love! Even though we are miles apart and haven’t met in person yet, nobody in this world means more to me than you do.',
   'Everything about you makes me fall harder every single day — how cute you are, the way your singing melts my heart, your creative soul lost in painting and the ocean, and the gentle nurse’s heart you carry in everything you do.',
-  'Thank you for every late-night call, every laugh across the distance, and every moment you turn ordinary days into my favorite ones just by being in my life.',
+  'Thank you for every late-night text, every laugh across the distance, and every moment you turn ordinary days into my favorite ones just by being in my life.',
   'As you step into 21, I wish you calm ocean waves, endless swims, canvases full of color, and songs that make you smile. Until the day I finally hold you for real, I’ll always be right here loving you endlessly.',
   'Forever & always yours,\nAbhi ❤️',
 ];
@@ -170,7 +170,7 @@ export interface WheelSegment {
 export const WHEEL_SEGMENTS: WheelSegment[] = [
   { label: 'Unlimited Hugs', shortLabel: 'HUGS', emoji: '🤗', color: '#ff4f8b', textColor: '#ffffff', description: 'Infinite virtual hugs now, plus real ones saved up for the day we finally meet!' },
   { label: '1000 Kisses', shortLabel: '1000 KISSES', emoji: '💋', color: '#7b2ff7', textColor: '#ffffff', description: 'Sent across the miles with extra love — and owed in person the moment I see you.' },
-  { label: 'A Romantic Date', shortLabel: 'DATE NIGHT', emoji: '🕯️', color: '#ff8a3d', textColor: '#ffffff', description: 'A cozy call date tonight, plus a dreamy ocean-side date waiting for us one day.' },
+  { label: 'A Romantic Date', shortLabel: 'DATE NIGHT', emoji: '🕯️', color: '#ff8a3d', textColor: '#ffffff', description: 'A cozy texting date tonight, plus a dreamy ocean-side date waiting for us one day.' },
   { label: 'A Surprise Gift', shortLabel: 'SURPRISE', emoji: '🎁', color: '#c2185b', textColor: '#ffffff', description: 'Something special picked out just for my cute birthday queen.' },
   { label: 'ALL MY LOVE, FOREVER!', shortLabel: 'JACKPOT', emoji: '👑', color: '#ffcc4d', textColor: '#3b0a57', isJackpot: true, description: 'You’ve won the biggest prize of all – ALL MY LOVE, FOREVER!' },
   { label: 'A Full Day Together', shortLabel: 'FULL DAY', emoji: '🌸', color: '#9d4edd', textColor: '#ffffff', description: 'Zero distractions today — just you, me, and counting down to our first real day together.' },
@@ -228,7 +228,7 @@ export const LOVE_REASONS: LoveReason[] = [
   {
     id: 5,
     title: 'Our laughs across the miles',
-    message: 'Even from miles away before we’ve ever met, nobody makes me laugh like you do. Every call is a memory I treasure.',
+    message: 'Even from miles away before we’ve ever met, nobody makes me laugh like you do. Every text we share is a memory I treasure.',
     emoji: '😂',
     gradient: 'from-[#ff5d8f] to-[#c9184a]',
     mediaType: 'video',
